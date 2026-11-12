@@ -43,3 +43,23 @@ class Message(Base):
     provider: Mapped[str] = mapped_column(String(32), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+
+
+class ConversationMemory(Base):
+    """Long-term dialogue state kept by the LangGraph summarize node."""
+
+    __tablename__ = "conversation_memory"
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class UserPrefs(Base):
+    """Accessibility preferences chosen during first-time setup."""
+
+    __tablename__ = "user_prefs"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    mode: Mapped[str] = mapped_column(String(8), default="")  # "isl" | "aac" | "" (not chosen yet)
+    onboarded: Mapped[int] = mapped_column(Integer, default=0)
+    voice: Mapped[str] = mapped_column(String(4), default="hi")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

@@ -17,6 +17,13 @@ class SignTransformer(nn.Module):
     ) -> None:
         super().__init__()
         self.proj = nn.Sequential(nn.Linear(in_dim, d_model), nn.LayerNorm(d_model), nn.GELU(), nn.Dropout(dropout))
+        # local temporal patterns (short motions) before global self-attention
+        self.conv = nn.Sequential(
+            nn.Conv1d(d_model, d_model, kernel_size=5, padding=2, groups=4),
+            nn.GELU(),
+            nn.Conv1d(d_model, d_model, kernel_size=5, padding=2, groups=4),
+        )
+        self.conv_norm = nn.LayerNorm(d_model)
         self.cls = nn.Parameter(torch.zeros(1, 1, d_model))
         self.pos = nn.Parameter(torch.randn(1, seq_len + 1, d_model) * 0.02)
         layer = nn.TransformerEncoderLayer(
@@ -28,6 +35,7 @@ class SignTransformer(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # x: (B, T, in_dim)
         h = self.proj(x)
+        h = self.conv_norm(h + self.conv(h.transpose(1, 2)).transpose(1, 2))
         h = torch.cat([self.cls.expand(h.size(0), -1, -1), h], dim=1) + self.pos[:, : h.size(1) + 1]
         h = self.encoder(h)
         return self.head(self.norm(h[:, 0]))

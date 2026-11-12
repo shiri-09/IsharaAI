@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Database, History as HistoryIcon, LogOut, ScanLine } from "lucide-react";
+import { Database, History as HistoryIcon, LogOut, PlayCircle, ScanFace, ScanLine } from "lucide-react";
 import Logo from "./Logo";
 import { useAuth } from "../lib/auth";
 
 const NAV = [
-  { to: "/", label: "Studio", icon: ScanLine },
+  { to: "/studio", label: "Sign Studio", icon: ScanLine },
+  { to: "/aac", label: "AAC board", icon: ScanFace },
   { to: "/collect", label: "Collect & Train", icon: Database },
   { to: "/history", label: "History", icon: HistoryIcon },
 ];
@@ -34,6 +35,9 @@ export default function Shell() {
             ))}
           </nav>
           <div className="flex items-center gap-3">
+            <NavLink to="/welcome" className="btn btn-ghost px-3" title="Replay intro">
+              <PlayCircle size={16} />
+            </NavLink>
             <span className="hidden text-sm text-zinc-400 md:inline">{user?.name}</span>
             <button className="btn btn-ghost px-3" onClick={logout} title="Log out">
               <LogOut size={16} />

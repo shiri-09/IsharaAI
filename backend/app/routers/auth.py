@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import create_token, current_user, hash_password, verify_password
+from ..config import settings
 from ..db import get_db
 from ..models import User
 
@@ -21,12 +22,29 @@ class LoginIn(BaseModel):
     password: str
 
 
+def _local_only() -> None:
+    if settings.auth_provider == "supabase":
+        raise HTTPException(400, "This server uses Supabase Auth; sign in through Supabase.")
+
+
+@router.get("/config")
+def auth_config():
+    """Public: tells the browser which auth flow to use (the Supabase anon key is public by design)."""
+    sb = settings.auth_provider == "supabase"
+    return {
+        "provider": "supabase" if sb else "local",
+        "supabase_url": settings.supabase_url if sb else None,
+        "supabase_anon_key": settings.supabase_anon_key if sb else None,
+    }
+
+
 def _out(user: User) -> dict:
     return {"token": create_token(user.id), "user": {"id": user.id, "email": user.email, "name": user.name}}
 
 
 @router.post("/register")
 def register(body: RegisterIn, db: Session = Depends(get_db)):
+    _local_only()
     email = body.email.strip().lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(400, "Email already registered")
@@ -38,6 +56,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(body: LoginIn, db: Session = Depends(get_db)):
+    _local_only()
     user = db.scalar(select(User).where(User.email == body.email.strip().lower()))
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(401, "Wrong email or password")

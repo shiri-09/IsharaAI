@@ -58,5 +58,500 @@
   {
     "id": "s15",
     "text": "Nice to meet you."
+  },
+  {
+    "id": "c001",
+    "text": "Are you free today",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c002",
+    "text": "Are you hiding something",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c003",
+    "text": "Bring water for me",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c004",
+    "text": "Can i help you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c005",
+    "text": "Can you repeat that please",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c006",
+    "text": "Comb your hair",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c007",
+    "text": "Congratulations",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c008",
+    "text": "Could you please talk slower",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c009",
+    "text": "Do me a favour",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c010",
+    "text": "Do not abuse him",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c011",
+    "text": "Do not be stubborn",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c012",
+    "text": "Do not hurt me",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c013",
+    "text": "Do not make me angry",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c014",
+    "text": "Do not take it to the heart",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c015",
+    "text": "Do not worry",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c016",
+    "text": "Do you need something",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c017",
+    "text": "Go and sleep",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c018",
+    "text": "Had your food",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c019",
+    "text": "He came by train",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c020",
+    "text": "He is going into the room",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c021",
+    "text": "He is on the way",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c022",
+    "text": "He she is my friend",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c023",
+    "text": "He would be coming today",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c024",
+    "text": "Help me",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c025",
+    "text": "Hi how are you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c026",
+    "text": "How are things",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c027",
+    "text": "How can i help you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c028",
+    "text": "How can i trust you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c029",
+    "text": "How dare you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c030",
+    "text": "How old are you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c031",
+    "text": "I am (age)",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c032",
+    "text": "I am afraid of that",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c033",
+    "text": "I am crying",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c034",
+    "text": "I am feeling bored",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c035",
+    "text": "I am feeling cold",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c036",
+    "text": "I am fine. thank you sir",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c037",
+    "text": "I am in dilemma what to do",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c038",
+    "text": "I am not really sure",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c039",
+    "text": "I am really grateful",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c040",
+    "text": "I am sitting in the class",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c041",
+    "text": "I am so sorry to hear that",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c042",
+    "text": "I am suffering from fever",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c043",
+    "text": "I am tired",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c044",
+    "text": "I am very happy",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c045",
+    "text": "I can not help you there",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c046",
+    "text": "I do not agree",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c047",
+    "text": "I do not like it",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c048",
+    "text": "I do not mean it",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c049",
+    "text": "I enjoyed a lot",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c050",
+    "text": "I got hurt",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c051",
+    "text": "I like you i love you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c052",
+    "text": "I need water",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c053",
+    "text": "I promise",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c054",
+    "text": "I really appreciate it",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c055",
+    "text": "I somehow got to know about it",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c056",
+    "text": "I was stopped by some one",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c057",
+    "text": "It does not make any difference to me",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c058",
+    "text": "It was nice chatting with you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c059",
+    "text": "Let him take time",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c060",
+    "text": "My name is xxxxxxxx",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c061",
+    "text": "Now onwards he will never hurt you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c062",
+    "text": "Pour some more water into the glass",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c063",
+    "text": "Prepare the bed",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c064",
+    "text": "Serve the food",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c065",
+    "text": "Shall we go outside",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c066",
+    "text": "Speak softly",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c067",
+    "text": "Take care of yourself",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c068",
+    "text": "Tell me truth",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c069",
+    "text": "Thank you so much",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c070",
+    "text": "That is so kind of you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c071",
+    "text": "This place is beautiful",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c072",
+    "text": "Try to understand",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c073",
+    "text": "Turn on light turn off light",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c074",
+    "text": "We are all with you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c075",
+    "text": "Wear the shirt",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c076",
+    "text": "What are you doing",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c077",
+    "text": "What did you tell him",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c078",
+    "text": "What do you do",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c079",
+    "text": "What do you think",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c080",
+    "text": "What do you want to become",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c081",
+    "text": "What happened",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c082",
+    "text": "What have you planned for your career",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c083",
+    "text": "What is your phone number",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c084",
+    "text": "What you want",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c085",
+    "text": "When will the train leave",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c086",
+    "text": "Where are you from",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c087",
+    "text": "Which collegeschool are you from",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c088",
+    "text": "Who are you",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c089",
+    "text": "Why are you angry",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c090",
+    "text": "Why are you crying",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c091",
+    "text": "Why are you disappointed",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c092",
+    "text": "You are bad",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c093",
+    "text": "You are good",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c094",
+    "text": "You are welcome",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c095",
+    "text": "You can do it",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c096",
+    "text": "You do anything, i do not care",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c097",
+    "text": "You need a medicine, take this one",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c098",
+    "text": "No need to worry dont worry",
+    "source": "ISL-CSLTR"
+  },
+  {
+    "id": "c099",
+    "text": "I dont agree",
+    "source": "ISL-CSLTR"
   }
 ]

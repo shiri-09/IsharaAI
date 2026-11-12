@@ -14,7 +14,6 @@ FACE_IDX = [61, 291, 0, 17, 13, 14, 78, 308, 70, 63, 105, 66, 107, 336, 296, 334
 N_POINTS = N_POSE + 2 * N_HAND + len(FACE_IDX)  # 95
 FRAME_DIM = N_POINTS * 3  # 285
 SEQ_LEN = 64  # frames after resampling
-FEAT_DIM = FRAME_DIM * 2  # positions + velocities
 
 L_SHOULDER, R_SHOULDER = 11, 12
 LH = slice(N_POSE, N_POSE + N_HAND)
@@ -60,8 +59,49 @@ def normalize(seq: np.ndarray) -> np.ndarray:
     return pts.reshape(seq.shape[0], FRAME_DIM)
 
 
+def fill_hand_gaps(pts: np.ndarray) -> np.ndarray:
+    """Linearly interpolate short interior dropouts of each hand (tracking loss) in a (T, N_POINTS, 3) array."""
+    t = pts.shape[0]
+    frames = np.arange(t)
+    for sl in (LH, RH):
+        seen = np.abs(pts[:, sl]).sum(axis=(1, 2)) > 0
+        if seen.sum() < 2 or seen.all():
+            continue
+        first, last = np.argmax(seen), t - 1 - np.argmax(seen[::-1])
+        gap = (~seen) & (frames > first) & (frames < last)
+        if not gap.any():
+            continue
+        block = pts[:, sl].reshape(t, -1)
+        for c in range(block.shape[1]):
+            block[gap, c] = np.interp(frames[gap], frames[seen], block[seen, c])
+        pts[:, sl] = block.reshape(t, N_HAND, 3)
+    return pts
+
+
+# upper-body pose (0-22: face, shoulders, arms, hands), both hands, face subset; legs/hips are rarely in frame
+KEEP = np.r_[0:23, N_POSE : N_POINTS]
+N_KEEP = len(KEEP)
+FEAT_DIM = N_KEEP * 2 * 2 + 2 * N_HAND * 3  # xy positions + xy velocities + hand-local xyz shapes
+
+
+def featurize(norm: np.ndarray) -> np.ndarray:
+    """Normalised (T, FRAME_DIM) -> (SEQ_LEN, FEAT_DIM) model input."""
+    pts = fill_hand_gaps(norm.reshape(norm.shape[0], N_POINTS, 3).copy())
+    pts = resample(pts.reshape(pts.shape[0], -1)).reshape(SEQ_LEN, N_POINTS, 3)
+    xy = pts[:, KEEP, :2].reshape(SEQ_LEN, -1)
+    vel = np.diff(xy, axis=0, prepend=xy[:1])
+    shapes = []
+    for sl in (LH, RH):
+        h = pts[:, sl]  # (T, 21, 3)
+        present = np.abs(h).sum(axis=(1, 2)) > 0
+        local = h - h[:, :1]  # relative to wrist
+        size = np.linalg.norm(local[:, 9, :2], axis=1, keepdims=True)  # wrist -> middle-finger knuckle
+        local = local / np.maximum(size, 1e-3)[:, :, None]
+        local[~present] = 0.0
+        shapes.append(local.reshape(SEQ_LEN, -1))
+    return np.concatenate([xy, vel, *shapes], axis=1).astype(np.float32)
+
+
 def to_features(raw: np.ndarray) -> np.ndarray:
     """(T, FRAME_DIM) raw keypoints -> (SEQ_LEN, FEAT_DIM) model input."""
-    x = resample(normalize(raw))
-    vel = np.diff(x, axis=0, prepend=x[:1])
-    return np.concatenate([x, vel], axis=1).astype(np.float32)
+    return featurize(normalize(raw))

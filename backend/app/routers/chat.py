@@ -2,25 +2,24 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
 from ..db import get_db
-from ..llm.router import llm
-from ..models import Conversation, Message, User
-from ..services.translate import LANGUAGES, translate_all
+from ..models import Conversation, ConversationMemory, Message, User
+from ..services.dialogue import dialogue_graph
+from ..services.translate import LANGUAGES
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
-SYSTEM_PROMPT = (
-    "You are Ishara AI, a warm and patient conversation partner for Deaf and hard-of-hearing people in India. "
-    "The user's messages usually come from an Indian Sign Language (ISL) recogniser, so they may be short, "
-    "telegraphic, or missing grammar words. Infer the intended meaning from context and the conversation history. "
-    "Reply in simple, clear English in 1-3 short sentences. If the meaning is genuinely unclear, ask one short "
-    "clarifying question. Never mention that you are reading recogniser output."
-)
 HISTORY_TURNS = 12
+MAX_IMAGE_B64 = 1_500_000  # ~1.1 MB JPEG
+
+
+class Candidate(BaseModel):
+    text: str
+    p: float = 0.0
 
 
 class ChatIn(BaseModel):
@@ -28,6 +27,8 @@ class ChatIn(BaseModel):
     conversation_id: int | None = None
     source: str = "text"  # "sign" | "text"
     languages: list[str] = Field(default_factory=lambda: list(LANGUAGES))
+    candidates: list[Candidate] = Field(default_factory=list, max_length=5)  # recogniser top-k for signs
+    image: str | None = None  # base64 JPEG (data URL prefix allowed) of the signer, for the multimodal model
 
 
 def _msg_out(m: Message) -> dict:
@@ -70,7 +71,11 @@ def get_conversation(cid: int, user: User = Depends(current_user), db: Session =
 
 @router.delete("/conversations/{cid}")
 def delete_conversation(cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    db.delete(_own_conversation(db, user, cid))
+    conv = _own_conversation(db, user, cid)
+    mem = db.get(ConversationMemory, cid)  # explicit: SQLite does not enforce FK cascades by default
+    if mem:
+        db.delete(mem)
+    db.delete(conv)
     db.commit()
     return {"ok": True}
 
@@ -84,28 +89,55 @@ async def chat(body: ChatIn, user: User = Depends(current_user), db: Session = D
         db.add(conv)
         db.commit()
 
-    user_msg = Message(conversation_id=conv.id, role="user", content=body.text.strip(), source=body.source)
-    db.add(user_msg)
-    db.commit()
+    image = body.image.split(",", 1)[-1] if body.image else None
+    if image and len(image) > MAX_IMAGE_B64:
+        raise HTTPException(413, "Snapshot too large")
 
     history = db.scalars(
         select(Message).where(Message.conversation_id == conv.id).order_by(Message.id.desc()).limit(HISTORY_TURNS)
     ).all()[::-1]
-    messages = [{"role": m.role, "content": m.content} for m in history]
+    memory = db.get(ConversationMemory, conv.id)
+    user_turns = db.scalar(
+        select(func.count()).select_from(Message).where(Message.conversation_id == conv.id, Message.role == "user")
+    )
 
     try:
-        reply, provider = await llm.chat(messages, SYSTEM_PROMPT)
+        state = await dialogue_graph.ainvoke(
+            {
+                "history": [{"role": m.role, "content": m.content} for m in history],
+                "text": body.text.strip(),
+                "source": body.source,
+                "candidates": [c.model_dump() for c in body.candidates],
+                "image": image,
+                "languages": body.languages,
+                "summary": memory.summary if memory else "",
+                "turn": (user_turns or 0) + 1,
+            }
+        )
     except RuntimeError as e:
         raise HTTPException(503, str(e))
 
-    translations = await translate_all(reply, body.languages)
+    user_msg = Message(conversation_id=conv.id, role="user", content=state["interpreted"], source=body.source)
+    db.add(user_msg)
+    db.commit()
     bot_msg = Message(
         conversation_id=conv.id,
         role="assistant",
-        content=reply,
-        translations=json.dumps(translations, ensure_ascii=False),
-        provider=provider,
+        content=state["reply"],
+        translations=json.dumps(state.get("translations", {}), ensure_ascii=False),
+        provider=state["provider"],
     )
     db.add(bot_msg)
+    if state.get("new_summary"):
+        if memory is None:
+            memory = ConversationMemory(conversation_id=conv.id)
+            db.add(memory)
+        memory.summary = state["new_summary"]
     db.commit()
-    return {"conversation_id": conv.id, "user_message": _msg_out(user_msg), "reply": _msg_out(bot_msg)}
+    return {
+        "conversation_id": conv.id,
+        "user_message": _msg_out(user_msg),
+        "reply": _msg_out(bot_msg),
+        "intent": state.get("intent"),
+        "interpreted_from": body.text if state["interpreted"] != body.text.strip() else None,
+    }

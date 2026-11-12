@@ -15,11 +15,10 @@ Segmentation: a sentence starts when hands appear and ends after END_GAP frames 
 
 import asyncio
 
-import jwt
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from ..auth import decode_token
+from ..auth import AuthError, user_id_from_token
 from ..config import settings
 from ..ml.features import FRAME_DIM, hands_present
 from ..ml.infer import recognizer
@@ -35,8 +34,8 @@ MAX_FRAMES = 300
 async def recognize(ws: WebSocket):
     token = ws.query_params.get("token", "")
     try:
-        decode_token(token)
-    except (jwt.PyJWTError, ValueError, KeyError):
+        await asyncio.to_thread(user_id_from_token, token)
+    except AuthError:
         await ws.close(code=4401)
         return
     await ws.accept()

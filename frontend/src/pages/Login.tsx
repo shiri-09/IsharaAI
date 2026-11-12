@@ -5,7 +5,8 @@ import Logo from "../components/Logo";
 import { useAuth } from "../lib/auth";
 
 export default function Login() {
-  const { user, login, register } = useAuth();
+  const { user, login, register, provider } = useAuth();
+  const [notice, setNotice] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,10 +19,17 @@ export default function Login() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setNotice("");
     setBusy(true);
     try {
       if (mode === "login") await login(email, password);
-      else await register(name, email, password);
+      else {
+        const msg = await register(name, email, password);
+        if (msg) {
+          setNotice(msg);
+          setMode("login");
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -57,6 +65,9 @@ export default function Login() {
             <h2 className="text-xl font-semibold text-zinc-100">{mode === "login" ? "Welcome back" : "Create account"}</h2>
             <p className="mt-1 text-sm text-zinc-500">
               {mode === "login" ? "Sign in to continue your conversations." : "Your history stays on this server."}
+              <span className="mt-2 block font-mono text-[10px] uppercase tracking-wider text-zinc-600">
+                {provider === "supabase" ? "Secured by Supabase Auth" : "Local auth mode"}
+              </span>
             </p>
           </div>
           {mode === "register" && (
@@ -80,6 +91,7 @@ export default function Login() {
             required
           />
           {error && <p className="text-sm text-red-400/90">{error}</p>}
+          {notice && <p className="text-sm text-emerald-300/90">{notice}</p>}
           <button className="btn btn-chrome w-full" disabled={busy}>
             {busy ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
             {mode === "login" ? "Sign in" : "Create account"}

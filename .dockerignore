@@ -1,8 +1,10 @@
 **/.venv
-**/node_modules
 **/__pycache__
-frontend/dist
-frontend/public/mediapipe/wasm
+**/node_modules
 *.db
 .env
 .git
+data/external
+datasets
+frontend/dist
+frontend/public/mediapipe/wasm

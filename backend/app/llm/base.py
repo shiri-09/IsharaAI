@@ -1,7 +1,7 @@
 import re
 from typing import Protocol
 
-# A chat message: {"role": "user" | "assistant", "content": str}
+# A chat message: {"role": "user" | "assistant", "content": str, optional "image": base64 JPEG}
 ChatMessage = dict[str, str]
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)

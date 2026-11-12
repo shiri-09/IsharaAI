@@ -1,0 +1,4 @@
+# Only for building training data from videos (scripts/): not needed to run the app
+mediapipe>=0.10.20
+opencv-python-headless>=4.9
+openpyxl>=3.1

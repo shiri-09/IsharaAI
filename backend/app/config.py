@@ -16,9 +16,13 @@ class Settings(BaseSettings):
     ollama_model: str = "hf.co/unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
     ollama_send_think: bool = True  # set False for models that reject the "think" field
     ollama_think: bool = False
+    ollama_vision: bool = True  # the default Qwen3.5 GGUF reports "vision" in `ollama show`; set False for text-only models
     llm_timeout: float = 90.0
 
-    # Auth
+    # Auth: "supabase" (Supabase Auth) or "local" (built-in JWT, offline fallback)
+    auth_provider: str = "local"
+    supabase_url: str = ""
+    supabase_anon_key: str = ""  # public "anon"/publishable key; safe to send to the browser
     jwt_secret: str = "change-me-in-.env"
     jwt_expire_minutes: int = 60 * 24
 

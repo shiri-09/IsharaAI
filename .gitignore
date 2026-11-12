@@ -9,3 +9,7 @@ frontend/public/mediapipe/wasm/
 # Local state / secrets
 .env
 *.db
+
+# Downloaded datasets
+datasets/
+data/external/

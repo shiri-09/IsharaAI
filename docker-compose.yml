@@ -2,7 +2,7 @@ services:
   ishara:
     build: .
     ports:
-      - "8000:8000"
+      - "${ISHARA_PORT:-8080}:8000"
     env_file: .env
     environment:
       # reach Ollama running on the host machine

@@ -9,6 +9,32 @@ import { useHolistic } from "../lib/useHolistic";
 
 type ChatResp = { conversation_id: number; user_message: Msg; reply: Msg };
 
+/** Grab a small frame of the webcam as a canvas. */
+function grabFrame(video: HTMLVideoElement | null, w = 256): HTMLCanvasElement | null {
+  if (!video || !video.videoWidth) return null;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = Math.round((video.videoHeight / video.videoWidth) * w);
+  c.getContext("2d")?.drawImage(video, 0, 0, c.width, c.height);
+  return c;
+}
+
+/** Beginning / middle / end of the signing, side by side, as one JPEG data URL for the vision model. */
+function filmstrip(frames: HTMLCanvasElement[]): string | null {
+  if (!frames.length) return null;
+  const pick = frames.length <= 3 ? frames : [frames[0], frames[Math.floor(frames.length / 2)], frames[frames.length - 1]];
+  const out = document.createElement("canvas");
+  out.width = pick.reduce((a, f) => a + f.width, 0);
+  out.height = Math.max(...pick.map((f) => f.height));
+  const ctx = out.getContext("2d")!;
+  let x = 0;
+  for (const f of pick) {
+    ctx.drawImage(f, x, 0);
+    x += f.width;
+  }
+  return out.toDataURL("image/jpeg", 0.75);
+}
+
 export default function Studio() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -37,14 +63,25 @@ export default function Studio() {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
-  const send = useCallback(async (msg: string, source: "sign" | "text") => {
+  const snapshot = useRef<string | null>(null);
+  const frames = useRef<HTMLCanvasElement[]>([]);
+  const grabTimer = useRef<number | undefined>(undefined);
+
+  const send = useCallback(async (msg: string, source: "sign" | "text", candidates: Prediction["top"] = []) => {
     const s = state.current;
     if (!msg.trim() || s.sending) return;
     setSending(true);
     setError("");
     try {
       const r = await api<ChatResp>("/api/chat", {
-        body: { text: msg, conversation_id: s.conversationId, source, languages: s.langs },
+        body: {
+          text: msg,
+          conversation_id: s.conversationId,
+          source,
+          languages: s.langs,
+          candidates: candidates.map((c) => ({ text: c.text, p: c.p })),
+          image: source === "sign" ? snapshot.current : null,
+        },
       });
       setConversationId(r.conversation_id);
       setMessages((prev) => [...prev, r.user_message, r.reply]);
@@ -73,21 +110,34 @@ export default function Studio() {
     ws.current = sock;
     sock.onmessage = (ev) => {
       const m = JSON.parse(ev.data);
-      if (m.type === "state") setSigning(m.signing);
-      else if (m.type === "prediction") {
+      if (m.type === "state") {
+        setSigning(m.signing);
+        // sample webcam frames while signing; they become a filmstrip for the multimodal model
+        window.clearInterval(grabTimer.current);
+        if (m.signing) {
+          frames.current = [];
+          grabTimer.current = window.setInterval(() => {
+            const f = grabFrame(cam.videoRef.current);
+            if (f && frames.current.length < 12) frames.current.push(f);
+          }, 350);
+        } else {
+          snapshot.current = filmstrip(frames.current);
+        }
+      } else if (m.type === "prediction") {
         setPrediction(m);
-        if (m.accepted && state.current.autoSend) send(m.text, "sign");
+        if (m.accepted && state.current.autoSend) send(m.text, "sign", m.top);
       } else if (m.type === "error") setError(m.message);
     };
     sock.onclose = (ev) => {
       if (ev.code === 4401) setError("Session expired, please log in again.");
     };
     return () => {
+      window.clearInterval(grabTimer.current);
       sock.close();
       ws.current = null;
       setSigning(false);
     };
-  }, [cam.status, send]);
+  }, [cam.status, cam.videoRef, send]);
 
   function submit(e: FormEvent) {
     e.preventDefault();

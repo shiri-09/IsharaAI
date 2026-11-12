@@ -29,6 +29,7 @@ DEFAULT_SENTENCES = [
 
 SENTENCES_FILE: Path = settings.data_dir / "sentences.json"
 RAW_DIR: Path = settings.data_dir / "raw"
+EXTERNAL_DIR: Path = settings.data_dir / "external"
 
 
 def load_sentences() -> list[dict]:
@@ -44,7 +45,7 @@ def save_sentences(items: list[dict]) -> None:
 
 def add_sentence(text: str) -> dict:
     items = load_sentences()
-    nums = [int(s["id"][1:]) for s in items if s["id"][1:].isdigit()]
+    nums = [int(s["id"][1:]) for s in items if s["id"].startswith("s") and s["id"][1:].isdigit()]
     item = {"id": f"s{(max(nums) + 1) if nums else 1:02d}", "text": text.strip()}
     items.append(item)
     save_sentences(items)
@@ -62,14 +63,21 @@ def save_sample(sentence_id: str, frames: list[list[float]]) -> Path:
     return path
 
 
+def _files(sentence_id: str) -> list[Path]:
+    """Own recordings (data/raw, in git) + keypoints extracted from public datasets (data/external, git-ignored)."""
+    return sorted((RAW_DIR / sentence_id).glob("*.npy")) + sorted((EXTERNAL_DIR / sentence_id).glob("*.npy"))
+
+
 def sample_counts() -> dict[str, int]:
-    return {s["id"]: len(list((RAW_DIR / s["id"]).glob("*.npy"))) for s in load_sentences()}
+    return {s["id"]: len(_files(s["id"])) for s in load_sentences()}
 
 
-def load_all() -> tuple[list[np.ndarray], list[str]]:
-    seqs, labels = [], []
+def load_all() -> tuple[list[np.ndarray], list[str], list[str]]:
+    """Returns (sequences, sentence ids, group ids). Group = source video/recording, used to keep splits clean."""
+    seqs, labels, groups = [], [], []
     for s in load_sentences():
-        for f in sorted((RAW_DIR / s["id"]).glob("*.npy")):
-            seqs.append(np.load(f))
+        for f in _files(s["id"]):
+            seqs.append(np.load(f).astype(np.float32))
             labels.append(s["id"])
-    return seqs, labels
+            groups.append(f.stem.split("__")[0])
+    return seqs, labels, groups

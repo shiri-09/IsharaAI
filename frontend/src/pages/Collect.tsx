@@ -8,7 +8,14 @@ import { useHolistic } from "../lib/useHolistic";
 
 type Phase = "idle" | "countdown" | "recording" | "saving";
 type TrainState = { running: boolean; log: string; returncode: number | null };
-type ModelInfo = { ready: boolean; labels: { id: string; text: string }[]; val_acc: number | null; n_train: number | null };
+type ModelInfo = {
+  ready: boolean;
+  labels: { id: string; text: string }[];
+  val_acc: number | null;
+  test_acc: number | null;
+  test_top3: number | null;
+  n_test: number | null;
+};
 
 // Same segmentation rule as the live recogniser: start at first hands-up frame, stop after hands are down.
 const END_GAP = 10;
@@ -222,7 +229,9 @@ export default function Collect() {
             <h2 className="font-medium text-zinc-100">Transformer model</h2>
             <span className="ml-auto font-mono text-xs text-zinc-500">
               {model?.ready
-                ? `${model.labels.length} classes · val ${model.val_acc != null ? (model.val_acc * 100).toFixed(1) + "%" : "n/a"}`
+                ? `${model.labels.length} sentences · test ${
+                    model.test_acc != null ? (model.test_acc * 100).toFixed(1) + "%" : "n/a"
+                  }${model.test_top3 != null ? ` · top-3 ${(model.test_top3 * 100).toFixed(1)}%` : ""}`
                 : "not trained"}
             </span>
           </div>
