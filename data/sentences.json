@@ -1,0 +1,62 @@
+[
+  {
+    "id": "s01",
+    "text": "Hello, how are you?"
+  },
+  {
+    "id": "s02",
+    "text": "My name is ..."
+  },
+  {
+    "id": "s03",
+    "text": "I am fine, thank you."
+  },
+  {
+    "id": "s04",
+    "text": "What is your name?"
+  },
+  {
+    "id": "s05",
+    "text": "I need help."
+  },
+  {
+    "id": "s06",
+    "text": "Where is the hospital?"
+  },
+  {
+    "id": "s07",
+    "text": "I am hungry."
+  },
+  {
+    "id": "s08",
+    "text": "I want water."
+  },
+  {
+    "id": "s09",
+    "text": "Please call my family."
+  },
+  {
+    "id": "s10",
+    "text": "Thank you very much."
+  },
+  {
+    "id": "s11",
+    "text": "I do not understand."
+  },
+  {
+    "id": "s12",
+    "text": "Please repeat again."
+  },
+  {
+    "id": "s13",
+    "text": "What time is it?"
+  },
+  {
+    "id": "s14",
+    "text": "I am going home."
+  },
+  {
+    "id": "s15",
+    "text": "Nice to meet you."
+  }
+]

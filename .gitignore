@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Node
+node_modules/
+frontend/dist/
+frontend/public/mediapipe/wasm/
+# Local state / secrets
+.env
+*.db

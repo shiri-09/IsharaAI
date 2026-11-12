@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-ink: #060708;
+  --color-graphite: #111317;
+  --color-steel: #1a1d23;
+  --color-silver: #c9ced6;
+  --color-chrome: #eef1f5;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-ink);
+  background-image:
+    radial-gradient(1200px 600px at 15% -10%, rgba(200, 210, 225, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(160, 170, 190, 0.06), transparent 60%);
+  background-attachment: fixed;
+  color: var(--color-silver);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-xl;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 20px 60px -20px rgba(0, 0, 0, 0.8);
+  }
+  .chrome-text {
+    @apply bg-gradient-to-b from-white via-zinc-300 to-zinc-500 bg-clip-text text-transparent;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-chrome {
+    @apply bg-gradient-to-b from-zinc-100 to-zinc-400 text-zinc-950 hover:from-white hover:to-zinc-300;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      0 8px 24px -8px rgba(220, 225, 235, 0.35);
+  }
+  .btn-ghost {
+    @apply border border-white/10 bg-white/[0.03] text-zinc-300 hover:border-white/20 hover:bg-white/[0.06];
+  }
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-zinc-100 outline-none
+      placeholder:text-zinc-600 focus:border-zinc-400/60 focus:ring-2 focus:ring-zinc-400/10;
+  }
+  .label {
+    @apply text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
