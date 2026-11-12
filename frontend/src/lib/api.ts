@@ -1,15 +1,54 @@
 export type User = { id: number; email: string; name: string };
 export type Msg = {
   id: number;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "signer" | "speaker";
+  /** For signed turns: exactly what the recogniser produced. Never rewritten. */
   content: string;
+  /** What the agent understood, when it differs from `content` (e.g. chosen from context). */
+  interpreted?: string;
+  meta?: {
+    candidates?: { text: string; p: number }[];
+    intent?: string;
+    sources?: { title: string; source: string }[];
+    action_id?: number | null;
+    verified?: boolean;
+  };
   source: string;
   translations: Record<string, string>;
   provider: string;
   created_at: string;
 };
-export type ConversationSummary = { id: number; title: string; created_at: string };
-export type Sentence = { id: string; text: string; samples: number };
+export type AgentAction = {
+  id: number;
+  kind: string;
+  status: "draft" | "awaiting_consent" | "done" | "cancelled";
+  fields: Record<string, string>;
+  missing: string[];
+  problem: string;
+  summary: string;
+  reference: string | null;
+  result: string;
+  conversation_id: number;
+  created_at: string;
+};
+export type ChatResp = {
+  conversation_id: number;
+  context: string;
+  user_message: Msg;
+  reply: Msg;
+  intent?: string;
+  action: AgentAction | null;
+};
+export const CONTEXTS: Record<string, string> = {
+  general: "General",
+  campus: "Campus",
+  classroom: "Classroom",
+  office: "Office desk",
+  hospital: "Hospital",
+  home: "Home",
+};
+export type ConversationSummary = { id: number; title: string; context?: string; created_at: string };
+export type Sentence = { id: string; text: string; samples: number; in_model?: boolean; reliability?: number | null; has_video?: boolean };
 export type Prediction = {
   text: string;
   id: string;

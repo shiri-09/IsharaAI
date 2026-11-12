@@ -1,6 +1,6 @@
 import { useId } from "react";
 
-export default function Logo({ size = 32 }: { size?: number }) {
+export default function Logo({ size = 32, compact = false }: { size?: number; compact?: boolean }) {
   const gid = `chrome-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <div className="flex items-center gap-3">
@@ -22,7 +22,7 @@ export default function Logo({ size = 32 }: { size?: number }) {
           strokeLinejoin="round"
         />
       </svg>
-      <span className="chrome-text text-lg font-semibold tracking-tight">Ishara AI</span>
+      {!compact && <span className="chrome-text text-lg font-semibold tracking-tight">Ishara AI</span>}
     </div>
   );
 }

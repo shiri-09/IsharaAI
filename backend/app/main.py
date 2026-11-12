@@ -6,12 +6,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
-from .db import Base, engine
+from .db import Base, engine, migrate
 from .llm.router import llm
-from .routers import auth, chat, data, prefs, recognize, tts
+from .routers import agent, auth, avatar, chat, data, live, prefs, recognize, tts
 
 logging.basicConfig(level=logging.INFO)
 Base.metadata.create_all(engine)
+migrate()
 
 app = FastAPI(title="Ishara AI", version="0.1.0", description="Continuous ISL recognition + multilingual dialogue")
 app.add_middleware(
@@ -22,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, chat.router, tts.router, data.router, recognize.router, prefs.router):
+for r in (auth.router, chat.router, tts.router, data.router, recognize.router, prefs.router, avatar.router, live.router, agent.router):
     app.include_router(r)
 
 

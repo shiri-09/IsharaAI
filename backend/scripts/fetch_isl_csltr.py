@@ -21,8 +21,8 @@ URL = (
 )
 
 
-def resolve(client: httpx.Client) -> tuple[str, int]:
-    r = client.head(URL, follow_redirects=True)
+def resolve(client: httpx.Client, src: str = URL) -> tuple[str, int]:
+    r = client.head(src, follow_redirects=True)
     r.raise_for_status()
     return str(r.url), int(r.headers["content-length"])
 
@@ -98,11 +98,12 @@ def main() -> None:
     ap.add_argument("--out", default="../datasets")
     ap.add_argument("--match", nargs="+", default=["Videos_Sentence_Level", "corpus_csv_files", "ISL_CSLRT.txt"])
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--url", default=URL, help="any Mendeley zip (default: the ISL-CSLTR corpus)")
     args = ap.parse_args()
 
     out = Path(args.out)
     with httpx.Client(timeout=300, follow_redirects=True) as client:
-        url, size = resolve(client)
+        url, size = resolve(client, args.url)
         entries = [
             e
             for e in read_index(client, url, size)

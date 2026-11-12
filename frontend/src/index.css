@@ -97,3 +97,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .intro-scene, .intro-draw, .intro-pop, .intro-rise, .intro-type { animation: none; }
 }
+
+/* ---- high contrast preference ---- */
+.hc .text-zinc-600, .hc .text-zinc-500 { color: #c9ced6 !important; }
+.hc .text-zinc-400 { color: #e4e7ec !important; }
+.hc .border-white\/10, .hc .border-white\/\[0\.06\], .hc .border-white\/\[0\.08\] { border-color: rgba(255,255,255,0.35) !important; }
+.hc .glass { background: rgba(0,0,0,0.85); }

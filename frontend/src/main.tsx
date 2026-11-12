@@ -12,6 +12,12 @@ import Studio from "./pages/Studio";
 import Aac from "./pages/Aac";
 import Collect from "./pages/Collect";
 import History from "./pages/History";
+import SignBack from "./pages/SignBack";
+import Spell from "./pages/Spell";
+import Settings from "./pages/Settings";
+import SignLibrary from "./pages/SignLibrary";
+import Agent from "./pages/Agent";
+import Live from "./pages/Live";
 
 function Loading() {
   return <div className="grid h-full place-items-center text-zinc-500">Loading…</div>;
@@ -65,11 +71,17 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/" element={<Home />} />
               <Route element={<ModeGate mode="isl" />}>
                 <Route path="/studio" element={<Studio />} />
+                <Route path="/library" element={<SignLibrary />} />
+                <Route path="/live" element={<Live />} />
+                <Route path="/agent" element={<Agent />} />
+                <Route path="/reply" element={<SignBack />} />
+                <Route path="/spell" element={<Spell />} />
                 <Route path="/collect" element={<Collect />} />
               </Route>
               <Route element={<ModeGate mode="aac" />}>
                 <Route path="/aac" element={<Aac />} />
               </Route>
+              <Route path="/settings" element={<Settings />} />
               <Route path="/history" element={<History />} />
               <Route path="/history/:id" element={<History />} />
             </Route>

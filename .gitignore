@@ -13,3 +13,13 @@ frontend/public/mediapipe/wasm/
 # Downloaded datasets
 datasets/
 data/external/
+data/letters/
+
+# Personal recordings stay on this machine
+data/raw/s01/
+data/raw/s03/
+data/raw/s07/
+data/raw/s08/
+# Experiment outputs and backups
+models/experiments/
+models/*_prev.pt

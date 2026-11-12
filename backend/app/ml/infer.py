@@ -47,6 +47,10 @@ class Recognizer:
         except Exception as e:  # noqa: BLE001 - an outdated checkpoint must not take the API down
             log.warning("Ignoring incompatible model checkpoint %s: %s. Retrain to fix.", settings.model_path, e)
             return False
+        from . import features as feats_mod
+
+        # the checkpoint says how its training data was normalised; live features must match exactly
+        feats_mod.NORM_MODE = cfg.get("norm", "frame")
         with self._lock:
             self.model, self.labels = models, ckpt["labels"]
             self.meta = {k: ckpt.get(k) for k in ("val_acc", "test_acc", "test_top3", "n_train", "n_val", "n_test")}

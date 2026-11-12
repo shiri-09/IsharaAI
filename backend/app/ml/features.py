@@ -39,8 +39,14 @@ def resample(seq: np.ndarray, length: int = SEQ_LEN) -> np.ndarray:
     return seq[lo] * (1 - w) + seq[hi] * w
 
 
-def normalize(seq: np.ndarray) -> np.ndarray:
+# "frame": centre/scale from each frame's shoulders (original). "clip": one median centre/scale per clip, so
+# shoulder jitter does not shake every point. Set from the checkpoint config at load time (see infer.py).
+NORM_MODE = "frame"
+
+
+def normalize(seq: np.ndarray, mode: str | None = None) -> np.ndarray:
     """(T, FRAME_DIM) raw -> (T, FRAME_DIM) body-centred, shoulder-width scaled. Zeros (missing) stay zero."""
+    mode = mode or NORM_MODE
     pts = seq.reshape(seq.shape[0], N_POINTS, 3).astype(np.float32).copy()
     missing = np.all(pts == 0, axis=2)  # (T, N)
     ls, rs = pts[:, L_SHOULDER], pts[:, R_SHOULDER]
@@ -54,6 +60,9 @@ def normalize(seq: np.ndarray) -> np.ndarray:
     else:
         center[:] = 0.5
         scale[:] = 0.3
+    if mode == "clip" and valid.any():
+        center[:] = np.median(center[valid], axis=0)
+        scale[:] = np.median(scale[valid])
     pts = (pts - center[:, None, :]) / scale[:, None, None]
     pts[missing] = 0.0
     return pts.reshape(seq.shape[0], FRAME_DIM)
@@ -105,3 +114,30 @@ def featurize(norm: np.ndarray) -> np.ndarray:
 def to_features(raw: np.ndarray) -> np.ndarray:
     """(T, FRAME_DIM) raw keypoints -> (SEQ_LEN, FEAT_DIM) model input."""
     return featurize(normalize(raw))
+
+
+def dominant_left(norm: np.ndarray) -> bool:
+    """True if the LEFT hand does most of the signing (left-handed signer). Measured by how much each wrist moves
+    while visible, plus how often each hand is visible."""
+    pts = norm.reshape(norm.shape[0], N_POINTS, 3)
+    score = []
+    for sl in (LH, RH):
+        w = pts[:, sl.start, :2]
+        seen = np.abs(pts[:, sl]).sum(axis=(1, 2)) > 0
+        both = seen[1:] & seen[:-1]
+        motion = float(np.linalg.norm(np.diff(w, axis=0), axis=1)[both].sum()) if both.any() else 0.0
+        score.append(motion + 0.5 * float(seen.mean()))
+    return score[0] > score[1] * 1.15
+
+
+def canonical_hands(norm: np.ndarray) -> np.ndarray:
+    """Mirror a left-handed signing so the dominant hand is always the right hand (normalised input)."""
+    if not dominant_left(norm):
+        return norm
+    from .gpu_aug import PERM  # same left/right permutation as the mirror augmentation
+
+    pts = norm.reshape(norm.shape[0], N_POINTS, 3)[:, PERM].copy()
+    missing = np.all(pts == 0, axis=2)
+    pts[..., 0] *= -1
+    pts[missing] = 0.0
+    return pts.reshape(norm.shape[0], -1)

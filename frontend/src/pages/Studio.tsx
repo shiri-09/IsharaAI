@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { HolisticLandmarkerResult } from "@mediapipe/tasks-vision";
-import { Hand, Loader2, Plus, Send, Sparkles } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Camera, Hand, Loader2, Plus, Send, Sparkles, Upload } from "lucide-react";
+import ActionCard from "../components/ActionCard";
 import CameraStage from "../components/CameraStage";
+import VideoUpload from "../components/VideoUpload";
 import MessageBubble, { speak } from "../components/MessageBubble";
-import { api, LANGS, wsUrl, type Msg, type Prediction } from "../lib/api";
+import { api, CONTEXTS, LANGS, wsUrl, type AgentAction, type ChatResp, type Msg, type Prediction } from "../lib/api";
+import { usePrefs } from "../lib/prefs";
 import { toFrame } from "../lib/keypoints";
 import { useHolistic } from "../lib/useHolistic";
 
-type ChatResp = { conversation_id: number; user_message: Msg; reply: Msg };
 
 /** Grab a small frame of the webcam as a canvas. */
 function grabFrame(video: HTMLVideoElement | null, w = 256): HTMLCanvasElement | null {
@@ -39,9 +42,16 @@ export default function Studio() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [langs, setLangs] = useState<string[]>(Object.keys(LANGS));
-  const [voice, setVoice] = useState<string>("hi");
+  const { prefs } = usePrefs();
+  const loc = useLocation() as { state?: { draft?: string } };
+  const [voice, setVoice] = useState<string>(prefs?.auto_speak === false ? "off" : prefs?.voice || "hi");
+  const [context, setContext] = useState("campus");
+  const [action, setAction] = useState<AgentAction | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const [autoSend, setAutoSend] = useState(true);
-  const [text, setText] = useState("");
+  const [input, setInput] = useState<"live" | "upload">("live");
+  const busy = useRef(false);
+  const [text, setText] = useState(loc.state?.draft ?? "");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [signing, setSigning] = useState(false);
@@ -50,8 +60,8 @@ export default function Studio() {
   const ws = useRef<WebSocket | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
-  const state = useRef({ conversationId, langs, voice, autoSend, sending });
-  state.current = { conversationId, langs, voice, autoSend, sending };
+  const state = useRef({ conversationId, langs, voice, autoSend, sending, context });
+  state.current = { conversationId, langs, voice, autoSend, sending, context };
 
   useEffect(() => {
     api<{ ready: boolean }>("/api/model")
@@ -67,9 +77,10 @@ export default function Studio() {
   const frames = useRef<HTMLCanvasElement[]>([]);
   const grabTimer = useRef<number | undefined>(undefined);
 
-  const send = useCallback(async (msg: string, source: "sign" | "text", candidates: Prediction["top"] = []) => {
+  const send = useCallback(async (msg: string, source: "sign" | "text", candidates: Prediction["top"] = [], image?: string | null) => {
     const s = state.current;
-    if (!msg.trim() || s.sending) return;
+    if (!msg.trim() || busy.current) return;
+    busy.current = true;
     setSending(true);
     setError("");
     try {
@@ -77,14 +88,16 @@ export default function Studio() {
         body: {
           text: msg,
           conversation_id: s.conversationId,
+          context: s.context,
           source,
           languages: s.langs,
           candidates: candidates.map((c) => ({ text: c.text, p: c.p })),
-          image: source === "sign" ? snapshot.current : null,
+          image: source === "sign" ? (image !== undefined ? image : snapshot.current) : null,
         },
       });
       setConversationId(r.conversation_id);
       setMessages((prev) => [...prev, r.user_message, r.reply]);
+      setAction(r.action);
       if (s.voice !== "off") {
         const spoken = s.voice === "en" ? r.reply.content : r.reply.translations[s.voice];
         if (spoken) speak(spoken, s.voice).catch(() => undefined);
@@ -92,6 +105,7 @@ export default function Studio() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      busy.current = false;
       setSending(false);
     }
   }, []);
@@ -150,11 +164,61 @@ export default function Studio() {
     setMessages([]);
     setConversationId(null);
     setPrediction(null);
+    setAction(null);
+  }
+
+  async function decide(kind: "confirm" | "cancel") {
+    if (!action) return;
+    setActionBusy(true);
+    try {
+      const r = await api<{ action: AgentAction; message: Msg }>(`/api/actions/${action.id}/${kind}`, {
+        body: { languages: state.current.langs },
+      });
+      setAction(r.action.status === "cancelled" ? null : r.action);
+      setMessages((prev) => [...prev, r.message]);
+      const v = state.current.voice;
+      if (v !== "off") {
+        const spoken = v === "en" ? r.message.content : r.message.translations?.[v];
+        if (spoken) speak(spoken, v).catch(() => undefined);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setActionBusy(false);
+    }
   }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
       <div className="space-y-4">
+        <div className="flex gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
+          {([
+            ["live", "Live camera", Camera],
+            ["upload", "Upload a video", Upload],
+          ] as const).map(([k, label, Icon]) => (
+            <button
+              key={k}
+              onClick={() => {
+                if (k === "upload") cam.stop();
+                setInput(k);
+              }}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                input === k ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              <Icon size={15} /> {label}
+            </button>
+          ))}
+        </div>
+        {input === "upload" ? (
+          <>
+            <VideoUpload autoSend={autoSend} onSend={(t, top, img) => send(t, "sign", top, img)} />
+            <label className="flex items-center gap-2 px-1 text-xs text-zinc-500">
+              <input type="checkbox" checked={autoSend} onChange={(e) => setAutoSend(e.target.checked)} />
+              Auto-send confident recognitions to the conversation
+            </label>
+          </>
+        ) : (
         <CameraStage
           {...cam}
           onStart={cam.start}
@@ -206,6 +270,9 @@ export default function Studio() {
               ) : (
                 <p className="text-sm text-zinc-600">Recognised sentences appear here.</p>
               )}
+              <p className="text-xs text-zinc-500">
+                Not sure what to sign? The <Link to="/library" className="text-amber-300 underline">Sign library</Link> lists every sentence the reader knows, with a video of a real signer.
+              </p>
               <label className="flex items-center gap-2 text-xs text-zinc-500">
                 <input type="checkbox" checked={autoSend} onChange={(e) => setAutoSend(e.target.checked)} />
                 Auto-send confident recognitions to the conversation
@@ -213,12 +280,26 @@ export default function Studio() {
             </div>
           }
         />
+        )}
       </div>
 
-      <div className="glass flex h-[calc(100vh-8.5rem)] min-h-[520px] flex-col">
+      <div className="glass flex h-[calc(100vh-7.5rem)] lg:h-[calc(100vh-3rem)] min-h-[520px] flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/[0.06] px-5 py-4">
           <Sparkles size={16} className="text-zinc-400" />
           <h2 className="font-medium text-zinc-100">Conversation</h2>
+          <select
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            disabled={conversationId !== null}
+            title={conversationId !== null ? "Each conversation keeps its own context. Start a new one to change it." : "Where is this conversation happening?"}
+            className="rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+          >
+            {Object.entries(CONTEXTS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
           <button className="btn btn-ghost ml-auto px-3 py-1.5 text-xs" onClick={newChat}>
             <Plus size={14} /> New
           </button>
@@ -258,7 +339,7 @@ export default function Studio() {
             <div className="grid h-full place-items-center text-center">
               <div>
                 <p className="chrome-text text-2xl font-semibold">Start signing</p>
-                <p className="mt-2 text-sm text-zinc-600">or type a message to test the dialogue.</p>
+                <p className="mt-2 text-sm text-zinc-600">or type, for example: “I want to meet my professor tomorrow”.</p>
               </div>
             </div>
           )}
@@ -272,6 +353,11 @@ export default function Studio() {
           )}
         </div>
 
+        {action && (
+          <div className="px-5 pb-3">
+            <ActionCard action={action} busy={actionBusy} onConfirm={() => decide("confirm")} onCancel={() => decide("cancel")} />
+          </div>
+        )}
         {error && <p className="px-5 pb-2 text-sm text-red-400/90">{error}</p>}
         <form onSubmit={submit} className="flex gap-2 border-t border-white/[0.06] p-4">
           <input className="input" placeholder="Type a message…" value={text} onChange={(e) => setText(e.target.value)} />

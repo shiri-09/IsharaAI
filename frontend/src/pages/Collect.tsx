@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
 import type { HolisticLandmarkerResult } from "@mediapipe/tasks-vision";
 import { Brain, Circle, Loader2, Plus, Square } from "lucide-react";
 import CameraStage from "../components/CameraStage";
@@ -22,7 +23,8 @@ const END_GAP = 10;
 
 export default function Collect() {
   const [sentences, setSentences] = useState<Sentence[]>([]);
-  const [selected, setSelected] = useState<string>("");
+  const loc = useLocation() as { state?: { sentenceId?: string } };
+  const [selected, setSelected] = useState<string>(loc.state?.sentenceId ?? "");
   const [newText, setNewText] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [count, setCount] = useState(0);
@@ -176,6 +178,12 @@ export default function Collect() {
           <div className="space-y-3">
             <p className="label">Now recording</p>
             <p className="text-lg text-zinc-100">{current?.text ?? "Pick a sentence →"}</p>
+            {current?.has_video && (
+              <div className="flex items-start gap-3">
+                <video key={current.id} src={`/api/sentences/${current.id}/video`} muted loop autoPlay playsInline className="h-28 rounded-lg border border-white/10 bg-black" />
+                <p className="text-xs text-zinc-500">How a real signer signs it. Copy this, so your takes match what the reader learned.</p>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3">
               {phase === "recording" ? (
                 <button className="btn btn-ghost" onClick={save}>
@@ -229,7 +237,7 @@ export default function Collect() {
             <h2 className="font-medium text-zinc-100">Transformer model</h2>
             <span className="ml-auto font-mono text-xs text-zinc-500">
               {model?.ready
-                ? `${model.labels.length} sentences · test ${
+                ? `${model.labels.length} sentences · cross-validated ${
                     model.test_acc != null ? (model.test_acc * 100).toFixed(1) + "%" : "n/a"
                   }${model.test_top3 != null ? ` · top-3 ${(model.test_top3 * 100).toFixed(1)}%` : ""}`
                 : "not trained"}

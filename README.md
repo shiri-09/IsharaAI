@@ -22,6 +22,36 @@ FastAPI ─ segmentation (hands up → hands down = one sentence)
 
 Keypoints are extracted in the browser, so only small float arrays cross the network. No video is uploaded for recognition.
 
+## Features
+
+Three modes, each kept in History:
+
+| Mode | Page | What happens |
+|---|---|---|
+| AI conversation | `/studio` | Sign live or upload a video; the recognised sentence goes to the multimodal LLM (LangGraph dialogue) and the reply comes back as text and speech in 5 languages |
+| Real-time speech | `/live` | Two-way interpreter, no AI replies: the signer's sentence is captioned and spoken aloud in the hearing person's language; the hearing person's speech is captioned and signed by the avatar |
+| Agentic orchestration | `/agent` | Goal → plan of tool calls (local Ollama planner, rule planner as fallback) → read-only checks → explicit consent → execute → read back to verify, with a reference. Tools: campus lookup, slot check, book appointment, reminder, interpreter request, outbox message, translate. The full plan and trace are stored |
+
+| Feature | Where | Notes |
+|---|---|---|
+| Continuous ISL sentence recognition | Sign Studio | Transformer ensemble, top-3 suggestions, context picks among them |
+| Two inputs: live camera or video upload | Sign Studio | Upload an mp4/webm/mov; keypoints are read in the browser (the video stays local), then `POST /api/recognize` runs the same model. Optional split into several sentences where the hands go down |
+| Sign library | Sign library (`/library`) | Every sentence the reader knows, how reliable it was on held-out videos, and a real signer's video to copy |
+| Two-way conversation: hearing to Deaf | Reply in sign (`/reply`) | Speech (Web Speech API, 5 Indian locales) or text → ISL gloss → animated avatar built from real signers' poses; known sentences replay a real signer's motion |
+| Intelligent fingerspelling | Fingerspelling (`/spell`), Reply in sign | The avatar signs every letter A-Z with the ISL two-handed alphabet, built from photos of 4 real signers (`scripts/import_alphabet.py`, dataset below), with a hand close-up. Letters you teach on `/spell` replace the built-in ones |
+| Accessibility agent | Sign Studio and AAC board | LangGraph: intent and safety routing, campus knowledge with cited sources (RAG over `data/knowledge/`), task agent that books appointments only after the user confirms, then verifies and gives a reference |
+| Context-aware multi-turn | Both interfaces | "I want to meet my professor tomorrow" then "At 10 AM" fills one request; separate contexts per conversation (campus, classroom, hospital, …) |
+| Transcript kept separate | Every message | The signer's recognised words are stored and shown exactly as recognised; what the agent understood is stored and shown separately |
+| AAC: eyes and face only | AAC board | Eyebrow raise selects, mouth open pauses; consent for agent tasks is given the same way |
+| Personal accessibility preferences | Settings | Reply language, auto-speak, text size, high contrast, avatar speed, AAC scanning speed; saved per account |
+| Authentication and history | Supabase Auth, History | Separate ISL and AAC interfaces per account |
+
+Fingerspelling alphabet: Hambir S, Khandagale A, Santosh J, Gaikwad V, et al., *A Multimodal Indian Sign Language Dataset for English and Marathi Alphabets Featuring Pose and Skin Segmentation Representations*, Mendeley Data V1, [doi:10.17632/2tj6c7pzfk.1](https://doi.org/10.17632/2tj6c7pzfk.1), CC BY 4.0. Hand keypoints were extracted with MediaPipe Hands and placed on the avatar (`data/alphabet/`).
+
+The knowledge base in `data/knowledge/campus_sample.md` is **sample data**. Replace it with your institution's real information; any `.md` file there, split into `## ` sections, is indexed automatically.
+
+To rebuild the avatar's sign dictionary from the corpus: `python scripts/fetch_isl_csltr.py --match Frames_Word_Level` then `python scripts/import_word_signs.py`.
+
 ## PS 2 requirements → where they live
 
 | Requirement (problem statement) | Implementation |

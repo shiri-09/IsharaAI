@@ -11,7 +11,7 @@ const MODEL_URL =
 
 let landmarkerPromise: Promise<HolisticLandmarker> | null = null;
 
-function getLandmarker(): Promise<HolisticLandmarker> {
+export function getLandmarker(): Promise<HolisticLandmarker> {
   if (!landmarkerPromise) {
     landmarkerPromise = (async () => {
       const fileset = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
@@ -33,7 +33,7 @@ function getLandmarker(): Promise<HolisticLandmarker> {
 
 type Status = "idle" | "loading" | "running" | "error";
 
-function drawPoints(
+export function drawPoints(
   ctx: CanvasRenderingContext2D,
   pts: NormalizedLandmark[] | undefined,
   conns: { start: number; end: number }[],
