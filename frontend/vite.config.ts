@@ -10,6 +10,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": backend,
+      "/demo": backend,
       "/ws": { target: backend.replace(/^http/, "ws"), ws: true },
     },
   },

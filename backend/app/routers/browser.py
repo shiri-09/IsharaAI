@@ -1,6 +1,8 @@
 """Browser agent API. The agent runs in a background thread; the app polls this API to show it live and to answer its questions."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from urllib.parse import urlparse
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -39,8 +41,13 @@ def _own(user: User, rid: str) -> ba.BrowserRun:
 
 
 @router.post("/runs")
-def start(body: RunIn, user: User = Depends(current_user)):
+def start(body: RunIn, request: Request, user: User = Depends(current_user)):
     url = body.start_url.strip()
+    # the demo sites live on THIS server: point the agent here, whatever page (dev server, proxy) the app was opened from
+    path = urlparse(url).path if url else ""
+    if path.startswith("/demo/"):
+        host, port = request.scope.get("server") or ("127.0.0.1", 8000)
+        url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{port}{path}"
     if url and not ba.SAFE_NAV.match(url):
         raise HTTPException(422, "The start page must begin with http:// or https://")
     return ba.start_run(user.id, body.goal.strip(), url, body.headless).state()
