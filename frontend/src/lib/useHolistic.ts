@@ -6,8 +6,11 @@ import {
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
 
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/latest/holistic_landmarker.task";
+// served from our own server first (works offline and behind firewalls); Google is only a fallback
+const MODEL_URLS = [
+  "/mediapipe/models/holistic_landmarker.task",
+  "https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/latest/holistic_landmarker.task",
+];
 
 let landmarkerPromise: Promise<HolisticLandmarker> | null = null;
 
@@ -15,16 +18,22 @@ export function getLandmarker(): Promise<HolisticLandmarker> {
   if (!landmarkerPromise) {
     landmarkerPromise = (async () => {
       const fileset = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
-      const make = (delegate: "GPU" | "CPU") =>
+      const make = (url: string, delegate: "GPU" | "CPU") =>
         HolisticLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: MODEL_URL, delegate },
+          baseOptions: { modelAssetPath: url, delegate },
           runningMode: "VIDEO",
         });
-      try {
-        return await make("GPU");
-      } catch {
-        return await make("CPU");
+      let lastErr: unknown;
+      for (const url of MODEL_URLS) {
+        for (const delegate of ["GPU", "CPU"] as const) {
+          try {
+            return await make(url, delegate);
+          } catch (e) {
+            lastErr = e;
+          }
+        }
       }
+      throw lastErr;
     })();
     landmarkerPromise.catch(() => (landmarkerPromise = null));
   }

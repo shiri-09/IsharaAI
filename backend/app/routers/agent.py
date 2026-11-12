@@ -27,7 +27,9 @@ from ..services.translate import translate_all
 
 log = logging.getLogger("ishara.agent")
 router = APIRouter(prefix="/api/agent", tags=["agentic orchestration"])
-PAUSE = 0.7  # seconds between visible steps, so the user can follow the orchestration
+PAUSE = 0.7  # short beat after the plan appears
+PAUSE_READ = 2.2  # a check "runs" while the workspace shows the agent looking at the page
+PAUSE_EXEC = 5.2  # an action "runs" while the workspace shows the agent filling in the form; the record is committed after this
 _tasks: set[asyncio.Task] = set()
 
 
@@ -138,7 +140,7 @@ async def _plan_and_check(db: Session, user_id: int, run: AgentRun, goal: str, p
         if s["tool"] in orch.READ_ONLY:
             s["status"] = "running"
             _flush(db, run, steps, trace)
-            await asyncio.sleep(PAUSE)
+            await asyncio.sleep(PAUSE_READ)
             res = orch.run_read_only(s["tool"], s["args"], taken)
             if s["tool"] == "translate":
                 res = {"ok": True, "result": json.dumps(await translate_all(s["args"]["text"], s["args"].get("languages") or ["hi"]), ensure_ascii=False)}
@@ -214,7 +216,7 @@ async def _job_execute(run_id: int, languages: list[str]) -> None:
                 continue
             s["status"] = "running"
             _flush(db, run, steps, trace)
-            await asyncio.sleep(PAUSE)
+            await asyncio.sleep(PAUSE_EXEC)
             a = AgentAction(user_id=run.user_id, conversation_id=run.conversation_id, kind=s["tool"],
                             payload=json.dumps({"fields": s["args"], "run_id": run.id}), status="done", result=s["description"])
             db.add(a)

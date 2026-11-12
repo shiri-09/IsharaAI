@@ -3,6 +3,7 @@ import time
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..auth import current_user
@@ -48,14 +49,26 @@ def letters(_: User = Depends(current_user)):
 
 
 @router.get("/letters/templates")
-def letter_templates(_: User = Depends(current_user)):
-    """Mean frame of every taught sample, for the browser's nearest-neighbour letter classifier."""
+async def letter_templates(_: User = Depends(current_user)):
+    """One frame per sample for the browser's nearest-neighbour letter classifier: the user's own taught samples, plus the built-in
+    ISL alphabet (real signers' hand shapes) for every letter the user has not taught, so spelling works out of the box."""
+    await run_in_threadpool(avatar.load)
     out = []
+    taught = set()
     if LETTERS_DIR.exists():
         for d in sorted(LETTERS_DIR.iterdir()):
             for f in sorted(d.glob("*.npy")):
                 arr = np.load(f).astype(np.float32)
-                out.append({"letter": d.name, "frame": [round(float(v), 4) for v in arr.mean(0)]})
+                out.append({"letter": d.name, "frame": [round(float(v), 4) for v in arr.mean(0)], "builtin": False})
+                taught.add(d.name)
+    for ch, pose in avatar.alphabet.items():
+        if ch in taught or not pose:
+            continue
+        frame = []
+        for pt in pose[:95]:
+            frame += [float(pt[0]), float(pt[1]), 0.0] if pt else [0.0, 0.0, 0.0]
+        if len(frame) == FRAME_DIM:
+            out.append({"letter": ch, "frame": [round(v, 4) for v in frame], "builtin": True})
     return out
 
 
@@ -77,3 +90,30 @@ def clear_letter(letter: str, _: User = Depends(current_user)):
         for f in folder.glob("*.npy"):
             f.unlink()
     return _letter_counts()
+
+
+# ---------------------------------------------------------------- the ISL alphabet library
+PHOTOS = LETTERS_DIR.parent / "alphabet" / "photos"
+
+
+@router.get("/alphabet")
+async def alphabet_list(_: User = Depends(current_user)):
+    """A to Z for the Sign library: the avatar's handshape for each letter, whether a real signer's photo exists, and whether
+    the user has taught their own version."""
+    await run_in_threadpool(avatar.load)
+    taught = _letter_counts()
+    out = []
+    for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        pose = avatar.alphabet.get(ch)
+        hands = sum(1 for h0 in (33, 54) if pose and pose[h0]) if pose else 0
+        out.append({"letter": ch, "pose": pose, "hands": hands, "has_photo": (PHOTOS / f"{ch}.jpg").exists(), "taught": taught.get(ch, 0)})
+    return out
+
+
+@router.get("/alphabet/{letter}/photo")
+def alphabet_photo(letter: str):
+    """A real signer showing the letter (CC BY 4.0, see data/alphabet/SOURCE.md). Public so an <img> tag can load it."""
+    f = PHOTOS / f"{letter.upper()[:1]}.jpg"
+    if not f.exists():
+        raise HTTPException(404, "No photo for this letter")
+    return FileResponse(f, media_type="image/jpeg")

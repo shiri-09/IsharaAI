@@ -23,3 +23,7 @@ data/raw/s08/
 # Experiment outputs and backups
 models/experiments/
 models/*_prev.pt
+data/browser_profile/
+data/raw/s16/
+data/raw/s17/
+models/exp_batch*.sh

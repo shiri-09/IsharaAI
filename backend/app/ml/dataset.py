@@ -78,6 +78,60 @@ def _files(sentence_id: str) -> list[Path]:
     return sorted((RAW_DIR / sentence_id).glob("*.npy")) + sorted((EXTERNAL_DIR / sentence_id).glob("*.npy"))
 
 
+MANIFEST_FILE: Path = settings.model_path.parent / "trained_files.json"
+
+
+def all_paths() -> list[str]:
+    """Relative path (to data/) of every recording, in exactly the order load_all() returns them."""
+    out = []
+    for s in load_sentences():
+        for f in _files(s["id"]):
+            out.append(f.relative_to(settings.data_dir).as_posix())
+    return out
+
+
+def load_manifest() -> dict:
+    """{"files": [...], "history": [...]}: the recordings the deployed model was trained on, and its fine-tune history."""
+    try:
+        return json.loads(MANIFEST_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"files": [], "history": []}
+
+
+def save_manifest(files: list[str], history: list[dict]) -> None:
+    """Record what the model has learned from. `trained_at` is when: a recording only counts as NEW if it was added after
+    this moment (corpus sentences that were deliberately left out of the model are not new)."""
+    import time
+
+    MANIFEST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    MANIFEST_FILE.write_text(json.dumps({"files": sorted(set(files)), "history": history, "trained_at": time.time()}, indent=1), encoding="utf-8")
+
+
+MIN_FRAMES_BYTES = 8 * 285 * 2  # smaller than this cannot hold 8 frames
+
+
+def new_recordings(model_ids: set[str]) -> dict:
+    """Recordings added since the model was last trained.
+    -> {"old_classes": {id: n}, "new_classes": {id: n}} counting only new files of sentences the model knows / does not know."""
+    m = load_manifest()
+    seen = set(m.get("files", []))
+    t0 = float(m.get("trained_at", 0) or 0)
+    old: dict[str, int] = {}
+    new: dict[str, int] = {}
+    if not seen:
+        return {"old_classes": old, "new_classes": new}
+    for s in load_sentences():
+        for f in _files(s["id"]):
+            rel = f.relative_to(settings.data_dir).as_posix()
+            if rel in seen:
+                continue
+            st = f.stat()
+            if st.st_mtime <= t0 or st.st_size < MIN_FRAMES_BYTES:
+                continue
+            (old if s["id"] in model_ids else new)[s["id"]] = (old if s["id"] in model_ids else new).get(s["id"], 0) + 1
+    return {"old_classes": old, "new_classes": new}
+
+
 def sample_counts() -> dict[str, int]:
     return {s["id"]: len(_files(s["id"])) for s in load_sentences()}
 

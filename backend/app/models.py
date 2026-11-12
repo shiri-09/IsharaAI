@@ -107,3 +107,18 @@ class AgentRun(Base):
     provider: Mapped[str] = mapped_column(String(32), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class AgentMemory(Base):
+    """What the browser agent has learned about the user: personal details the user typed once (name, phone, address, ...).
+    Passwords, card numbers, OTPs and PINs are never stored."""
+
+    __tablename__ = "agent_memory"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(64), index=True)  # canonical field name: name, phone, address, email, notes, ...
+    label: Mapped[str] = mapped_column(String(120), default="")  # how the site asked for it, e.g. "Block and room"
+    value: Mapped[str] = mapped_column(Text, default="")
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

@@ -3,6 +3,7 @@ import { Ear, Hand, Loader2, Mic, MicOff, Plus, Radio, Send, Volume2 } from "luc
 import AvatarStage from "../components/AvatarStage";
 import CameraStage from "../components/CameraStage";
 import { speak } from "../components/MessageBubble";
+import TakeFeedback from "../components/TakeFeedback";
 import { api, type Msg, type Prediction } from "../lib/api";
 import { buildSteps, type Segment } from "../lib/avatar";
 import { usePrefs } from "../lib/prefs";
@@ -77,7 +78,9 @@ export default function Live() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
+  const [lastPred, setLastPred] = useState<Prediction | null>(null);
   const reader = useSignReader((p) => {
+    setLastPred(p);
     if (p.accepted) fromSigner(p.text, "sign", p.top);
     else setPending(p);
   });
@@ -151,6 +154,7 @@ export default function Live() {
                     </div>
                   </div>
                 )}
+                <TakeFeedback pred={lastPred} />
                 <form
                   onSubmit={(e: FormEvent) => {
                     e.preventDefault();

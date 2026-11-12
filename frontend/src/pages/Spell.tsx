@@ -133,7 +133,7 @@ export default function Spell() {
   }
 
   const full = [...words, word].filter(Boolean).join(" ");
-  const taught = Object.values(counts).filter((n) => n > 0).length;
+  const taught = new Set(templates.map((t) => t.letter)).size;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
@@ -171,7 +171,7 @@ export default function Spell() {
             <button className={`btn ${tab === "teach" ? "btn-chrome" : "btn-ghost"}`} onClick={() => setTab("teach")}>
               <GraduationCap size={14} /> Teach letters
             </button>
-            <span className="ml-auto text-xs text-zinc-500">{taught} of 26 letters taught</span>
+            <span className="ml-auto text-xs text-zinc-500">{taught} of 26 letters ready</span>
           </div>
         }
       />
@@ -212,7 +212,7 @@ export default function Spell() {
               </button>
             </div>
             {templates.length === 0 && (
-              <p className="text-sm text-amber-300/80">No letters taught yet. Open “Teach letters” and record a few, then come back.</p>
+              <p className="text-sm text-amber-300/80">Letters are still loading. If this stays, check the backend is running.</p>
             )}
           </div>
         ) : (

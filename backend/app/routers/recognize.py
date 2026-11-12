@@ -14,6 +14,8 @@ Segmentation: a sentence starts when hands appear and ends after END_GAP frames 
 """
 
 import asyncio
+import time
+from collections import OrderedDict
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -26,6 +28,20 @@ from ..ml.infer import recognizer
 
 router = APIRouter(tags=["recognition"])
 
+# The last signed takes, kept briefly so the person can say "that was actually X" and the take becomes a training sample.
+_TAKES: "OrderedDict[str, tuple[int, np.ndarray]]" = OrderedDict()
+_take_n = 0
+
+
+def _remember_take(user_id: int, frames: np.ndarray) -> str:
+    global _take_n
+    _take_n += 1
+    tid = f"t{int(time.time())}-{_take_n}"
+    _TAKES[tid] = (user_id, frames)
+    while len(_TAKES) > 60:
+        _TAKES.popitem(last=False)
+    return tid
+
 MIN_FRAMES = 15
 END_GAP = 10
 MAX_FRAMES = 300
@@ -35,7 +51,7 @@ MAX_FRAMES = 300
 async def recognize(ws: WebSocket):
     token = ws.query_params.get("token", "")
     try:
-        await asyncio.to_thread(user_id_from_token, token)
+        uid = await asyncio.to_thread(user_id_from_token, token)
     except AuthError:
         await ws.close(code=4401)
         return
@@ -54,7 +70,7 @@ async def recognize(ws: WebSocket):
         except RuntimeError as e:
             await ws.send_json({"type": "error", "message": str(e)})
             return
-        await ws.send_json({"type": "prediction", **res, "accepted": res["confidence"] >= settings.min_confidence})
+        await ws.send_json({"type": "prediction", **res, "take": _remember_take(uid, frames), "accepted": res["confidence"] >= settings.min_confidence})
 
     try:
         while True:
@@ -140,3 +156,25 @@ async def recognize_clip(body: ClipIn, _user=Depends(current_user)):
             raise HTTPException(503, str(e)) from e
         out.append({"start": a, "end": b, **res, "accepted": res["confidence"] >= settings.min_confidence})
     return {"frames": len(arr), "segments": out}
+
+
+class CorrectIn(BaseModel):
+    take: str
+    sentence_id: str
+
+
+@router.post("/api/recognize/correct")
+def correct(body: CorrectIn, user=Depends(current_user)):
+    """"That was actually this sentence": keep the take as the person's own training sample for it.
+    A fine-tune (about 15 seconds) then teaches the model their way of signing."""
+    from ..ml import dataset
+
+    entry = _TAKES.get(body.take)
+    if entry is None or entry[0] != user.id:
+        raise HTTPException(404, "That take is no longer available. Sign it again.")
+    active = dataset.active_ids()
+    if body.sentence_id not in {s["id"] for s in dataset.load_sentences()} or (active is not None and body.sentence_id not in active):
+        raise HTTPException(422, "Unknown sentence")
+    dataset.save_sample(body.sentence_id, entry[1].tolist())
+    _TAKES.pop(body.take, None)
+    return {"ok": True, "samples": dataset.sample_counts().get(body.sentence_id, 0)}

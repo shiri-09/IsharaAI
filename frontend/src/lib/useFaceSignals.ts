@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FaceLandmarker, FilesetResolver, type Category } from "@mediapipe/tasks-vision";
+import { baseFeatures, eyeBlendshapes, headPose, type Feat } from "./gaze";
 
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+// served from our own server (works offline and behind firewalls); the Google copy is only a fallback
+const MODEL_URLS = [
+  "/mediapipe/models/face_landmarker.task",
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+];
 
 let faceLmPromise: Promise<FaceLandmarker> | null = null;
 
@@ -10,18 +14,25 @@ function getFaceLandmarker(): Promise<FaceLandmarker> {
   if (!faceLmPromise) {
     faceLmPromise = (async () => {
       const fileset = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
-      const make = (delegate: "GPU" | "CPU") =>
+      const make = (url: string, delegate: "GPU" | "CPU") =>
         FaceLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: MODEL_URL, delegate },
+          baseOptions: { modelAssetPath: url, delegate },
           runningMode: "VIDEO",
           numFaces: 1,
           outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true,
         });
-      try {
-        return await make("GPU");
-      } catch {
-        return await make("CPU");
+      let lastErr: unknown;
+      for (const url of MODEL_URLS) {
+        for (const delegate of ["GPU", "CPU"] as const) {
+          try {
+            return await make(url, delegate);
+          } catch (e) {
+            lastErr = e;
+          }
+        }
       }
+      throw lastErr;
     })();
     faceLmPromise.catch(() => (faceLmPromise = null));
   }
@@ -36,6 +47,12 @@ export type FaceSignals = {
   brow: number;
   /** Mouth open 0..1 (blendshape jawOpen). */
   jaw: number;
+  /** Eye closure 0..1 (max of both eyes), to ignore blinks. */
+  blink: number;
+  /** Gaze features for the calibrated eye tracker (see lib/gaze.ts). */
+  gf: Feat | null;
+  /** Counts processed frames, so consumers can skip duplicates. */
+  frame: number;
 };
 
 const score = (cats: Category[], name: string) => cats.find((c) => c.categoryName === name)?.score ?? 0;
@@ -46,7 +63,7 @@ const score = (cats: Category[], name: string) => cats.find((c) => c.categoryNam
  */
 export function useFaceSignals(onFrame?: (s: FaceSignals) => void) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const signals = useRef<FaceSignals>({ face: false, gazeX: 0, brow: 0, jaw: 0 });
+  const signals = useRef<FaceSignals>({ face: false, gazeX: 0, brow: 0, jaw: 0, blink: 0, gf: null, frame: 0 });
   const cb = useRef(onFrame);
   cb.current = onFrame;
   const raf = useRef(0);
@@ -111,10 +128,14 @@ export function useFaceSignals(onFrame?: (s: FaceSignals) => void) {
             s.gazeX = s.gazeX * 0.7 + raw * 0.3;
             s.brow = s.brow * 0.5 + score(cats, "browInnerUp") * 0.5;
             s.jaw = s.jaw * 0.5 + score(cats, "jawOpen") * 0.5;
+            s.blink = Math.max(score(cats, "eyeBlinkLeft"), score(cats, "eyeBlinkRight"));
+            s.gf = baseFeatures(pts, eyeBlendshapes((n) => score(cats, n)), headPose(r.facialTransformationMatrixes?.[0]?.data));
             s.face = true;
           } else {
             s.face = false;
+            s.gf = null;
           }
+          s.frame += 1;
           cb.current?.(s);
         }
         raf.current = requestAnimationFrame(loop);

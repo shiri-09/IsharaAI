@@ -6,6 +6,7 @@ import ActionCard from "../components/ActionCard";
 import CameraStage from "../components/CameraStage";
 import VideoUpload from "../components/VideoUpload";
 import MessageBubble, { speak } from "../components/MessageBubble";
+import TakeFeedback from "../components/TakeFeedback";
 import { api, CONTEXTS, LANGS, wsUrl, type AgentAction, type ChatResp, type Msg, type Prediction } from "../lib/api";
 import { usePrefs } from "../lib/prefs";
 import { toFrame } from "../lib/keypoints";
@@ -270,6 +271,7 @@ export default function Studio() {
               ) : (
                 <p className="text-sm text-zinc-600">Recognised sentences appear here.</p>
               )}
+              <TakeFeedback pred={prediction} />
               <p className="text-xs text-zinc-500">
                 Not sure what to sign? The <Link to="/library" className="text-amber-300 underline">Sign library</Link> lists every sentence the reader knows, with a video of a real signer.
               </p>

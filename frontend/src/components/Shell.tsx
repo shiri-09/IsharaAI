@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Logo from "./Logo";
+import GazeProvider from "./GazeProvider";
 import { useAuth } from "../lib/auth";
 import { usePrefs } from "../lib/prefs";
 
@@ -65,8 +66,12 @@ const ISL_NAV: Group[] = [
 ];
 const AAC_NAV: Group[] = [
   {
-    title: "Talk",
-    items: [{ to: "/aac", label: "AAC board", icon: ScanFace, hint: "Eyes and face only" }],
+    title: "Modes (eyes only)",
+    items: [
+      { to: "/aac", label: "AI conversation", icon: ScanFace, hint: "Phrases and eye typing" },
+      { to: "/aac/live", label: "Real-time speech", icon: Radio, hint: "Speak, then listen" },
+      { to: "/aac/agent", label: "Agentic orchestration", icon: Bot, hint: "Plan, confirm, do, verify" },
+    ],
   },
   {
     title: "You",
@@ -144,6 +149,8 @@ export default function Shell() {
               <NavLink
                 key={to}
                 to={to}
+                {...(aac ? { "data-gaze": "", "data-dwell": "1600" } : {})}
+                end={to === "/aac"}
                 title={mini ? label : undefined}
                 className={({ isActive }) =>
                   `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${mini ? "justify-center" : ""} ${
@@ -181,7 +188,7 @@ export default function Shell() {
         </Link>
         {!aac && (
           <Link
-            to="/welcome"
+            to="/intro"
             title="Replay intro"
             className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-zinc-400 transition hover:bg-white/[0.04] hover:text-zinc-100 ${mini ? "justify-center" : ""}`}
           >
@@ -239,8 +246,14 @@ export default function Shell() {
           </button>
           <Logo />
         </header>
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
-          <Outlet />
+        <main className={`mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8 ${aac ? "lg:pr-[290px]" : ""}`}>
+          {aac ? (
+            <GazeProvider>
+              <Outlet />
+            </GazeProvider>
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
     </div>

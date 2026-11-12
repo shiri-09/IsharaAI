@@ -1,4 +1,5 @@
 import asyncio
+import time
 import json
 import re
 import subprocess
@@ -12,13 +13,15 @@ from pydantic import BaseModel, Field
 from ..auth import current_user
 from ..config import ROOT
 from ..ml import dataset
+
 from ..ml.features import FRAME_DIM
 from ..ml.infer import recognizer
 from ..models import User
 
+MIN_NEW_TAKES = 8  # keep in step with ml/finetune.py
 router = APIRouter(prefix="/api", tags=["dataset & model"])
 
-_train_state: dict = {"running": False, "log": "", "returncode": None}
+_train_state: dict = {"running": False, "log": "", "returncode": None, "mode": "", "result": None}
 
 
 class SentenceIn(BaseModel):
@@ -129,19 +132,41 @@ def add_sample(body: SampleIn, _: User = Depends(current_user)):
 def model_status():
     if not recognizer.ready:
         recognizer.load()
+    ids = {l["id"] for l in recognizer.labels}
+    nr = dataset.new_recordings(ids) if recognizer.ready else {"old_classes": {}, "new_classes": {}}
+    pending = {k: v for k, v in nr["new_classes"].items() if v < MIN_NEW_TAKES}  # new sentences that need more takes
+    usable_new = sum(nr["old_classes"].values()) + sum(v for v in nr["new_classes"].values() if v >= MIN_NEW_TAKES)
     return {
         "ready": recognizer.ready,
         "labels": recognizer.labels,
         **recognizer.meta,
         "training": {k: _train_state[k] for k in ("running", "returncode")},
+        "new_takes": {
+            "total": usable_new,
+            "old_sentences": nr["old_classes"],
+            "new_sentences": {k: v for k, v in nr["new_classes"].items() if v >= MIN_NEW_TAKES},
+            "pending": pending,
+        },
+        "last_finetune": _last_finetune(),
     }
 
 
-async def _run_training(epochs: int) -> None:
-    _train_state.update(running=True, log="", returncode=None)
-    # GPU pipeline with the settings chosen by cross-validation (scripts/exp_cv.py): writes cv_report.json,
-    # then trains the deployed ensemble on all recordings
-    cmd = [sys.executable, "-m", "app.ml.train_fast", "--epochs", str(epochs)]
+def _last_finetune():
+    try:
+        return json.loads((ROOT / "models" / "last_finetune.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+async def _run_training(epochs: int, mode: str = "full") -> None:
+    _train_state.update(running=True, log="", returncode=None, mode=mode, result=None)
+    if mode == "finetune":
+        # keeps the trained model and teaches it only what is new (about 30 seconds)
+        cmd = [sys.executable, "-m", "app.ml.finetune", "--epochs", str(epochs)]
+    else:
+        # GPU pipeline with the settings chosen by cross-validation (scripts/exp_cv.py): writes cv_report.json,
+        # then trains the deployed ensemble on all recordings
+        cmd = [sys.executable, "-m", "app.ml.train_fast", "--epochs", str(epochs)]
     proc = await asyncio.to_thread(
         subprocess.run,
         cmd,
@@ -149,16 +174,27 @@ async def _run_training(epochs: int) -> None:
         capture_output=True,
         text=True,
     )
-    _train_state.update(running=False, log=(proc.stdout + proc.stderr)[-8000:], returncode=proc.returncode)
+    result = None
+    for line in proc.stdout.splitlines():
+        if line.startswith("RESULT "):
+            try:
+                result = json.loads(line[7:])
+            except ValueError:
+                pass
+    if mode == "finetune" and result and result.get("status") == "ok":
+        (ROOT / "models" / "last_finetune.json").write_text(json.dumps({**result, "at": time.time()}), encoding="utf-8")
+    _train_state.update(running=False, log=(proc.stdout + proc.stderr)[-8000:], returncode=proc.returncode, result=result)
     if proc.returncode == 0:
         recognizer.load()
 
 
 @router.post("/model/train")
-async def train(epochs: int = 300, _: User = Depends(current_user)):
+async def train(epochs: int | None = None, mode: str = "finetune", _: User = Depends(current_user)):
     if _train_state["running"]:
         raise HTTPException(409, "Training already running")
-    asyncio.create_task(_run_training(epochs))
+    if mode not in ("finetune", "full"):
+        raise HTTPException(422, "mode must be finetune or full")
+    asyncio.create_task(_run_training(epochs or (40 if mode == "finetune" else 300), mode))
     return {"started": True}
 
 

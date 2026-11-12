@@ -20,7 +20,7 @@ from torch import nn
 
 from ..config import settings
 from . import features as F
-from .dataset import active_ids, load_all, load_sentences
+from .dataset import active_ids, all_paths, load_all, load_sentences, save_manifest
 from .gpu_aug import GpuAugment, prep
 from .model import SignTransformer
 
@@ -85,6 +85,7 @@ def main() -> None:
     F.NORM_MODE = args.norm
     device = "cuda" if torch.cuda.is_available() else "cpu"
     seqs, labels, _ = load_all()
+    paths = all_paths()
     counts = Counter(labels)
     sentences = load_sentences()
     text_of = {s["id"]: s["text"] for s in sentences}
@@ -94,6 +95,7 @@ def main() -> None:
         raise SystemExit("Need recorded samples for at least 2 sentences. Use the Collect page first.")
     cidx = {c: i for i, c in enumerate(classes)}
     keep = [i for i, lab in enumerate(labels) if lab in cidx and len(seqs[i]) >= 8]
+    trained_paths = [paths[i] for i in keep]
     seqs = [seqs[i] for i in keep]
     labels = [labels[i] for i in keep]
     y = np.array([cidx[lab] for lab in labels])
@@ -155,6 +157,7 @@ def main() -> None:
         },
         settings.model_path,
     )
+    save_manifest(trained_paths, [])
     print(f"Saved {settings.model_path} ({args.ensemble} models) in {time.time() - t0:.0f}s", flush=True)
 
 

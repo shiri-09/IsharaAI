@@ -14,3 +14,4 @@ scikit-learn>=1.4
 psycopg[binary]>=3.2  # only when DATABASE_URL points at Supabase/Postgres
 # torch: install separately for RTX 50-series (CUDA 12.8):
 #   pip install torch --index-url https://download.pytorch.org/whl/cu128
+playwright>=1.49

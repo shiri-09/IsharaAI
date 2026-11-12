@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import { PrefsProvider, usePrefs } from "./lib/prefs";
 import Shell from "./components/Shell";
 import Login from "./pages/Login";
-import Intro from "./pages/Intro";
+import Cinema, { introSeen } from "./pages/Cinema";
 import Setup from "./pages/Setup";
 import Studio from "./pages/Studio";
 import Aac from "./pages/Aac";
@@ -18,6 +18,8 @@ import Settings from "./pages/Settings";
 import SignLibrary from "./pages/SignLibrary";
 import Agent from "./pages/Agent";
 import Live from "./pages/Live";
+import AacChat from "./pages/AacChat";
+import AacLive from "./pages/AacLive";
 
 function Loading() {
   return <div className="grid h-full place-items-center text-zinc-500">Loading…</div>;
@@ -41,6 +43,8 @@ function Onboarding() {
   if (!prefs) return <Loading />;
   const inSetup = loc.pathname === "/welcome" || loc.pathname === "/setup";
   if (!prefs.onboarded && !inSetup) return <Navigate to="/welcome" replace />;
+  // the cinematic intro plays once after every login
+  if (prefs.onboarded && !introSeen() && !inSetup && loc.pathname !== "/intro") return <Navigate to="/intro" replace />;
   return <Outlet />;
 }
 
@@ -65,7 +69,8 @@ createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<Protected />}>
-            <Route path="/welcome" element={<Intro />} />
+            <Route path="/welcome" element={<Cinema />} />
+            <Route path="/intro" element={<Cinema />} />
             <Route path="/setup" element={<Setup />} />
             <Route element={<Shell />}>
               <Route path="/" element={<Home />} />
@@ -79,7 +84,9 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/collect" element={<Collect />} />
               </Route>
               <Route element={<ModeGate mode="aac" />}>
-                <Route path="/aac" element={<Aac />} />
+                <Route path="/aac" element={<AacChat />} />
+                <Route path="/aac/live" element={<AacLive />} />
+                <Route path="/aac/agent" element={<Agent aac />} />
               </Route>
               <Route path="/settings" element={<Settings />} />
               <Route path="/history" element={<History />} />

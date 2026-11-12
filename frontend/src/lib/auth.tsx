@@ -102,6 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     sb.current?.auth.signOut();
     tokenStore.clear();
+    try {
+      sessionStorage.removeItem("ishara.intro.seen"); // the intro plays again after the next login
+    } catch {
+      /* ignore */
+    }
     setUser(null);
   }, []);
 

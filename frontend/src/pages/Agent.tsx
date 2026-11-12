@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   AlertTriangle,
   BellRing,
@@ -30,7 +30,11 @@ import {
   Video,
   type LucideIcon,
 } from "lucide-react";
+import AgentWorkspace from "../components/AgentWorkspace";
 import CameraStage from "../components/CameraStage";
+import BrowserAgent, { guessUrl, type BAsk } from "../components/BrowserAgent";
+import GazeKeyboard from "../components/GazeKeyboard";
+import TakeFeedback from "../components/TakeFeedback";
 import { speak } from "../components/MessageBubble";
 import { api, type Prediction } from "../lib/api";
 import { usePrefs } from "../lib/prefs";
@@ -98,6 +102,12 @@ export const STATUS: Record<Run["status"], { text: string; cls: string }> = {
   failed: { text: "Failed", cls: "border-red-400/40 text-red-300" },
 };
 
+const LIVE_EXAMPLES = [
+  "Order lunch from the campus canteen",
+  "Order a masala dosa from the campus canteen",
+  "Request a meeting with Professor Iyer on Wednesday at 2:00 PM about my project",
+];
+
 const EXAMPLES = [
   "Book a meeting with Professor Rao next Monday at 11 AM about my project",
   "I need a sign language interpreter for the seminar on Wednesday at 2 PM in the main auditorium",
@@ -151,7 +161,8 @@ function ActionLinks({ s }: { s: Step }) {
 }
 
 /** Shows one run: plan, step results, the question / consent, outcome and the trace. Used here and in History. */
-export function RunView({ run, busy, onReply, onConfirm, onCancel }: {
+export function RunView({ run, busy, onReply, onConfirm, onCancel, aac }: {
+  aac?: boolean;
   run: Run;
   busy?: boolean;
   onReply?: (text: string) => void;
@@ -217,18 +228,18 @@ export function RunView({ run, busy, onReply, onConfirm, onCancel }: {
           </div>
           {run.status === "awaiting_consent" && onConfirm && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <button className="btn btn-chrome py-3 text-base" onClick={onConfirm} disabled={busy}>
+              <button className="btn btn-chrome py-3 text-base" onClick={onConfirm} disabled={busy} data-gaze data-yes data-dwell="1500">
                 {busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Yes, do it
               </button>
-              <button className="btn btn-ghost py-3 text-base" onClick={onCancel} disabled={busy}>
+              <button className="btn btn-ghost py-3 text-base" onClick={onCancel} disabled={busy} data-gaze data-no data-dwell="1500">
                 <X size={16} /> No, cancel
               </button>
             </div>
           )}
-          {open && onReply && (
+          {open && onReply && !aac && (
             <form onSubmit={send} className="mt-3 flex flex-wrap gap-2">
               {suggest && (
-                <button type="button" className="btn btn-chrome px-3 py-2 text-sm" disabled={busy} onClick={() => onReply("yes")}>
+                <button type="button" className="btn btn-chrome px-3 py-2 text-sm" disabled={busy} onClick={() => onReply("yes")} data-gaze data-dwell="1500">
                   <Check size={14} /> Use the suggested time
                 </button>
               )}
@@ -237,7 +248,7 @@ export function RunView({ run, busy, onReply, onConfirm, onCancel }: {
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               </button>
               {onCancel && (
-                <button type="button" className="btn btn-ghost px-3 text-sm" onClick={onCancel} disabled={busy}>
+                <button type="button" className="btn btn-ghost px-3 text-sm" onClick={onCancel} disabled={busy} data-gaze data-dwell="1500">
                   Cancel
                 </button>
               )}
@@ -270,7 +281,7 @@ export function RunView({ run, busy, onReply, onConfirm, onCancel }: {
   );
 }
 
-export default function Agent() {
+export default function Agent({ aac = false }: { aac?: boolean }) {
   const { prefs } = usePrefs();
   const voice = prefs?.voice || "hi";
   const [goal, setGoal] = useState("");
@@ -278,9 +289,20 @@ export default function Agent() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [input, setInput] = useState<"type" | "sign">("sign");
+  const [input, setInput] = useState<"type" | "sign">(aac ? "type" : "sign");
   const [unsure, setUnsure] = useState<Prediction | null>(null);
+  const [tab, setTab] = useState<"live" | "plan">("live");
+  const [startUrl, setStartUrl] = useState("");
+  const [launch, setLaunch] = useState<{ goal: string; url?: string; n: number } | null>(null);
+  const [liveAsk, setLiveAsk] = useState<BAsk | null>(null);
+  const answerRef = useRef<((t: string) => void) | null>(null);
+  const liveN = useRef(0);
+  const regAnswer = useCallback((fn: ((t: string) => void) | null) => {
+    answerRef.current = fn;
+  }, []);
+  const [lastPred, setLastPred] = useState<Prediction | null>(null);
   const reader = useSignReader((p) => {
+    setLastPred(p);
     if (p.accepted) {
       setUnsure(null);
       setGoal(p.text);
@@ -339,6 +361,16 @@ export default function Agent() {
   function start(text: string, source = "text") {
     if (!text.trim()) return;
     setUnsure(null);
+    if (tab === "live") {
+      if (liveAsk?.kind === "text" && answerRef.current) {
+        answerRef.current(text.trim()); // the agent is waiting for a typed answer
+        setGoal("");
+        return;
+      }
+      liveN.current += 1;
+      setLaunch({ goal: text.trim(), url: startUrl.trim() || guessUrl(text), n: liveN.current });
+      return;
+    }
     call("/api/agent/runs", { goal: text.trim(), source, languages: [voice].filter((l) => l !== "en") });
   }
 
@@ -358,6 +390,15 @@ export default function Agent() {
         </div>
 
         <div className="flex gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
+          {([["live", "Live browser (real Chrome)"], ["plan", "Quick plan"]] as const).map(([k, label]) => (
+            <button key={k} data-gaze data-dwell="1500" onClick={() => setTab(k)}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm transition ${tab === k ? "bg-amber-400/15 text-amber-100" : "text-zinc-500 hover:text-zinc-300"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className={`${aac ? "hidden" : "flex"} gap-1 rounded-xl border border-white/10 bg-black/40 p-1`}>
           {([["sign", "Sign it"], ["type", "Type or speak"]] as const).map(([k, label]) => (
             <button key={k} onClick={() => { if (k === "type") reader.cam.stop(); setInput(k); }}
               className={`flex-1 rounded-lg px-3 py-2 text-sm transition ${input === k ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
@@ -366,7 +407,7 @@ export default function Agent() {
           ))}
         </div>
 
-        {input === "sign" && (
+        {input === "sign" && !aac && (
           <div className="space-y-2">
             <CameraStage {...reader.cam} onStart={reader.cam.start} onStop={reader.cam.stop}
               overlay={<div className="absolute inset-x-3 bottom-3 rounded-xl border border-white/10 bg-black/60 px-4 py-2 text-sm text-zinc-300 backdrop-blur">
@@ -383,12 +424,47 @@ export default function Agent() {
                 </div>
               </div>
             )}
-            <p className="px-1 text-xs text-zinc-500">The sign reader knows about 100 set sentences (see the Sign library). For anything else, such as a name or a date, switch to Type or speak.</p>
+            <TakeFeedback pred={lastPred} />
+            <p className="px-1 text-xs text-zinc-500">The sign reader knows 20 set sentences (see the Sign library). For anything else, such as a name or a date, switch to Type or speak.</p>
             {reader.error && <p className="text-xs text-red-400/90">{reader.error}</p>}
           </div>
         )}
 
-        <div className="glass space-y-3 p-5">
+        {aac && (
+          <div className="glass space-y-3 p-5">
+            <div className="min-h-[72px] rounded-xl border border-white/15 bg-black/50 px-5 py-4 text-3xl leading-snug text-zinc-100">
+              {goal || <span className="text-zinc-600">Look at the letters to type what you need…</span>}
+              <span className="animate-pulse text-amber-300">|</span>
+            </div>
+            <GazeKeyboard
+              value={goal}
+              onChange={setGoal}
+              busy={busy}
+              submitLabel={tab === "live" && liveAsk?.kind === "text" ? "Answer" : run && (run.status === "needs_info" || run.status === "blocked") ? "Reply" : "Run"}
+              onSubmit={() => {
+                if (tab === "live") {
+                  start(goal, "aac");
+                  setGoal("");
+                  return;
+                }
+                if (run && (run.status === "needs_info" || run.status === "blocked")) {
+                  call(`/api/agent/runs/${run.id}/reply`, { text: goal });
+                  setGoal("");
+                } else start(goal, "aac");
+              }}
+            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(tab === "live" ? LIVE_EXAMPLES : EXAMPLES.slice(0, 6)).map((e) => (
+                <button key={e} data-gaze data-dwell="1500" className="rounded-xl border border-white/10 px-4 py-3 text-left text-base text-zinc-300" disabled={busy} onClick={() => { setGoal(""); start(e, "aac"); }}>
+                  {e}
+                </button>
+              ))}
+            </div>
+            {error && <p className="text-sm text-red-400/90">{error}</p>}
+          </div>
+        )}
+
+        <div className={`glass space-y-3 p-5 ${aac ? "hidden" : ""}`}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -404,8 +480,11 @@ export default function Agent() {
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Run
             </button>
           </form>
+          {tab === "live" && (
+            <input className="input w-full text-sm" placeholder="Start page (optional, for example https://www.swiggy.com). Leave empty to let the agent pick a demo site." value={startUrl} onChange={(e) => setStartUrl(e.target.value)} />
+          )}
           <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((e) => (
+            {(tab === "live" ? LIVE_EXAMPLES : EXAMPLES).map((e) => (
               <button key={e} className="rounded-lg border border-white/10 px-2.5 py-1 text-left text-xs text-zinc-400 hover:text-zinc-200" onClick={() => { setGoal(e); start(e); }} disabled={busy}>
                 {e}
               </button>
@@ -413,6 +492,12 @@ export default function Agent() {
           </div>
           {(error || speech.error) && <p className="text-sm text-red-400/90">{error || speech.error}</p>}
         </div>
+
+        {tab === "live" ? (
+          <BrowserAgent launch={launch} aac={aac} onAsk={setLiveAsk} registerAnswer={regAnswer} />
+        ) : (
+          <>
+        <AgentWorkspace run={run} />
 
         <div className="glass min-h-[260px] p-5">
           {busy && !run && (
@@ -424,6 +509,7 @@ export default function Agent() {
             <RunView
               run={run}
               busy={busy}
+              aac={aac}
               onReply={(t) => call(`/api/agent/runs/${run.id}/reply`, { text: t })}
               onConfirm={() => call(`/api/agent/runs/${run.id}/confirm`, { languages: [voice].filter((l) => l !== "en") })}
               onCancel={() => call(`/api/agent/runs/${run.id}/cancel`, {})}
@@ -439,6 +525,8 @@ export default function Agent() {
             )
           )}
         </div>
+          </>
+        )}
       </div>
 
       <aside className="space-y-4">

@@ -12,9 +12,9 @@ function hand(frame: number[], start: number): number[] | null {
     pts.push([frame[i], frame[i + 1], frame[i + 2]]);
   }
   if (pts.every(([x, y]) => x === 0 && y === 0)) return null;
-  const [wx, wy, wz] = pts[0];
+  const [wx, wy] = pts[0];
   const size = Math.hypot(pts[9][0] - wx, pts[9][1] - wy) || 1e-3;
-  return pts.flatMap(([x, y, z]) => [(x - wx) / size, (y - wy) / size, (z - wz) / size]);
+  return pts.flatMap(([x, y]) => [(x - wx) / size, (y - wy) / size]); // 2D only: the built-in alphabet has no depth
 }
 
 export type LetterFeat = { lh: number[] | null; rh: number[] | null; rel: number[] | null };

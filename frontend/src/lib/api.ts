@@ -48,13 +48,15 @@ export const CONTEXTS: Record<string, string> = {
   home: "Home",
 };
 export type ConversationSummary = { id: number; title: string; context?: string; created_at: string };
-export type Sentence = { id: string; text: string; samples: number; in_model?: boolean; reliability?: number | null; has_video?: boolean };
+export type Sentence = { id: string; text: string; samples: number; in_model?: boolean; active?: boolean; reliability?: number | null; has_video?: boolean };
 export type Prediction = {
   text: string;
   id: string;
   confidence: number;
   top: { id: string; text: string; p: number }[];
   accepted: boolean;
+  /** The signed take, kept briefly on the server so a correction can turn it into a training sample. */
+  take?: string;
 };
 
 export const LANGS: Record<string, string> = { hi: "हिन्दी", kn: "ಕನ್ನಡ", ta: "தமிழ்", te: "తెలుగు" };

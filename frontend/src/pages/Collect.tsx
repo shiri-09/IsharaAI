@@ -8,7 +8,19 @@ import { hasHands, toFrame } from "../lib/keypoints";
 import { useHolistic } from "../lib/useHolistic";
 
 type Phase = "idle" | "countdown" | "recording" | "saving";
-type TrainState = { running: boolean; log: string; returncode: number | null };
+type FtResult = {
+  status: string;
+  message?: string;
+  new_takes?: number;
+  added_sentences?: string[];
+  skipped_too_few?: Record<string, number>;
+  held_out?: number;
+  held_out_accuracy_before?: number | null;
+  held_out_accuracy_after?: number | null;
+  seconds?: number;
+  at?: string;
+};
+type TrainState = { running: boolean; log: string; returncode: number | null; mode?: string; result?: FtResult | null };
 type ModelInfo = {
   ready: boolean;
   labels: { id: string; text: string }[];
@@ -16,6 +28,8 @@ type ModelInfo = {
   test_acc: number | null;
   test_top3: number | null;
   n_test: number | null;
+  new_takes?: { total: number; old_sentences: Record<string, number>; new_sentences: Record<string, number>; pending: Record<string, number> };
+  last_finetune?: FtResult | null;
 };
 
 // Same segmentation rule as the live recogniser: start at first hands-up frame, stop after hands are down.
@@ -32,6 +46,13 @@ export default function Collect() {
   const [msg, setMsg] = useState("");
   const [train, setTrain] = useState<TrainState | null>(null);
   const [model, setModel] = useState<ModelInfo | null>(null);
+
+  const [guided, setGuided] = useState<{ ids: string[]; i: number; take: number } | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const guidedRef = useRef(guided);
+  guidedRef.current = guided;
+  const recordRef = useRef<() => void>(() => undefined);
+  const TAKES_EACH = 3;
 
   const buf = useRef<number[][]>([]);
   const gap = useRef(0);
@@ -69,6 +90,22 @@ export default function Collect() {
       const r = await api<{ samples: number }>("/api/samples", { body: { sentence_id: selectedRef.current, frames: data } });
       setSentences((s) => s.map((x) => (x.id === selectedRef.current ? { ...x, samples: r.samples } : x)));
       setMsg(`Saved ${data.length} frames.`);
+      const g = guidedRef.current;
+      if (g) {
+        // guided mode: next take of this sentence, or the next sentence, and keep recording
+        const takeNo = g.take + 1;
+        const done = takeNo >= TAKES_EACH;
+        const ni = done ? g.i + 1 : g.i;
+        if (ni >= g.ids.length) {
+          setGuided(null);
+          setMsg("All sentences recorded. Press Fine-tune below to teach the model your signing.");
+        } else {
+          selectedRef.current = g.ids[ni];
+          setSelected(g.ids[ni]);
+          setGuided({ ...g, i: ni, take: done ? 0 : takeNo });
+          window.setTimeout(() => recordRef.current(), 1800);
+        }
+      }
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
     } finally {
@@ -96,7 +133,7 @@ export default function Collect() {
   const cam = useHolistic(onResult);
 
   function record() {
-    if (!selected || phase !== "idle") return;
+    if (!selectedRef.current || phaseRef.current !== "idle") return;
     setMsg("");
     buf.current = [];
     gap.current = 0;
@@ -113,6 +150,20 @@ export default function Collect() {
         setPhase("recording");
       }
     }, 700);
+  }
+
+  recordRef.current = record;
+
+  function startGuided() {
+    const ids = sentences.filter((x) => x.in_model && x.active !== false).map((x) => x.id);
+    if (!ids.length || cam.status !== "running") {
+      setMsg("Start the camera first.");
+      return;
+    }
+    selectedRef.current = ids[0];
+    setSelected(ids[0]);
+    setGuided({ ids, i: 0, take: 0 });
+    window.setTimeout(() => recordRef.current(), 600);
   }
 
   useEffect(() => {
@@ -135,9 +186,10 @@ export default function Collect() {
     setSelected(s.id);
   }
 
-  async function startTraining() {
-    await api("/api/model/train", { method: "POST" });
-    setTrain({ running: true, log: "", returncode: null });
+  async function startTraining(mode: "finetune" | "full") {
+    if (mode === "full" && !confirm("Retrain from scratch on every recording? This takes several minutes and replaces the model.")) return;
+    await api(`/api/model/train?mode=${mode}`, { method: "POST" });
+    setTrain({ running: true, log: "", returncode: null, mode });
   }
 
   useEffect(() => {
@@ -151,7 +203,6 @@ export default function Collect() {
   }, [train?.running, loadModel]);
 
   const current = sentences.find((s) => s.id === selected);
-  const ready = sentences.filter((s) => s.samples > 0).length;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
@@ -176,6 +227,16 @@ export default function Collect() {
         }
         footer={
           <div className="space-y-3">
+            {guided && (
+              <div className="flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-400/[0.07] px-4 py-2 text-sm text-amber-100">
+                <span>
+                  Sentence {guided.i + 1} of {guided.ids.length}, take {guided.take + 1} of {TAKES_EACH}. Sign it, then lower your hands.
+                </span>
+                <button className="btn btn-ghost ml-auto !px-2 !py-1 text-xs" onClick={() => setGuided(null)}>
+                  Stop
+                </button>
+              </div>
+            )}
             <p className="label">Now recording</p>
             <p className="text-lg text-zinc-100">{current?.text ?? "Pick a sentence →"}</p>
             {current?.has_video && (
@@ -203,12 +264,17 @@ export default function Collect() {
 
       <div className="space-y-6">
         <div className="glass p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-medium text-zinc-100">Sentences</h2>
-            <span className="font-mono text-xs text-zinc-500">aim for 20+ takes each</span>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-medium text-zinc-100">Sentences the reader knows</h2>
+            <button className="text-xs text-zinc-500 hover:text-zinc-300" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Show only the 20" : "Show all"}
+            </button>
           </div>
+          <button className="btn btn-chrome mb-3 w-full" onClick={startGuided} disabled={!!guided || cam.status !== "running"}>
+            <Circle size={14} /> Teach my signing: record all 20, {TAKES_EACH} takes each (about 6 min)
+          </button>
           <div className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
-            {sentences.map((s) => (
+            {sentences.filter((x) => showAll || (x.in_model && x.active !== false)).map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSelected(s.id)}
@@ -243,10 +309,44 @@ export default function Collect() {
                 : "not trained"}
             </span>
           </div>
-          <button className="btn btn-chrome w-full" onClick={startTraining} disabled={train?.running || ready < 2}>
-            {train?.running ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
-            {train?.running ? "Training…" : `Train on ${ready} recorded sentences`}
-          </button>
+          {(() => {
+            const nt = model?.new_takes;
+            const total = nt?.total ?? 0;
+            const sentences = Object.keys(nt?.old_sentences ?? {}).length + Object.keys(nt?.new_sentences ?? {}).length;
+            const pending = Object.keys(nt?.pending ?? {}).length;
+            return (
+              <>
+                <button className="btn btn-chrome w-full" onClick={() => startTraining("finetune")} disabled={train?.running || total === 0}>
+                  {train?.running && train.mode === "finetune" ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
+                  {train?.running && train.mode === "finetune"
+                    ? "Fine-tuning…"
+                    : total > 0
+                      ? `Fine-tune on ${total} new recording${total === 1 ? "" : "s"} (${sentences} sentence${sentences === 1 ? "" : "s"}), about 30 s`
+                      : "Model is up to date. Record something new to fine-tune."}
+                </button>
+                {pending > 0 && (
+                  <p className="text-xs text-amber-300/80">
+                    {pending} new sentence{pending === 1 ? " needs" : "s need"} at least 8 takes before {pending === 1 ? "it is" : "they are"} added.
+                  </p>
+                )}
+                <button className="w-full text-xs text-zinc-500 hover:text-zinc-300" onClick={() => startTraining("full")} disabled={train?.running}>
+                  {train?.running && train.mode === "full" ? "Retraining from scratch…" : "Retrain from scratch on everything (slow, re-measures accuracy)"}
+                </button>
+              </>
+            );
+          })()}
+          {(() => {
+            const r = (train && !train.running ? train.result : null) ?? model?.last_finetune;
+            if (!r || r.status !== "ok") return r?.message ? <p className="text-xs text-zinc-500">{r.message}</p> : null;
+            const pc = (v?: number | null) => (v == null ? "n/a" : `${(v * 100).toFixed(0)}%`);
+            return (
+              <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/[0.06] p-3 text-sm text-emerald-100">
+                <p className="font-medium">Last fine-tune: learned {r.new_takes} new recordings in {r.seconds}s</p>
+                {r.added_sentences && r.added_sentences.length > 0 && <p className="text-xs text-emerald-200/80">Added: {r.added_sentences.join(", ")}</p>}
+                {r.held_out ? <p className="text-xs text-emerald-200/80">On {r.held_out} takes it never trained on: {pc(r.held_out_accuracy_before)} before, {pc(r.held_out_accuracy_after)} after.</p> : null}
+              </div>
+            );
+          })()}
           {train?.log && (
             <pre className="max-h-48 overflow-auto rounded-lg bg-black/50 p-3 font-mono text-[11px] text-zinc-400">{train.log}</pre>
           )}
