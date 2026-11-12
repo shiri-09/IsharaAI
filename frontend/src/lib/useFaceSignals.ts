@@ -50,11 +50,13 @@ export function useFaceSignals(onFrame?: (s: FaceSignals) => void) {
   const cb = useRef(onFrame);
   cb.current = onFrame;
   const raf = useRef(0);
+  const gen = useRef(0); // bumped by every start/stop so a stale start (React StrictMode remount) can tell it was cancelled
   const stream = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "running" | "error">("idle");
   const [error, setError] = useState("");
 
   const stop = useCallback(() => {
+    gen.current += 1;
     cancelAnimationFrame(raf.current);
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
@@ -65,15 +67,27 @@ export function useFaceSignals(onFrame?: (s: FaceSignals) => void) {
   const start = useCallback(async () => {
     setError("");
     setStatus("loading");
+    const mine = ++gen.current;
     try {
       const [lm, media] = await Promise.all([
         getFaceLandmarker(),
         navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" }, audio: false }),
       ]);
+      if (mine !== gen.current) {
+        media.getTracks().forEach((t) => t.stop()); // cancelled while the camera was opening
+        return;
+      }
       stream.current = media;
       const video = videoRef.current!;
       video.srcObject = media;
-      await video.play();
+      try {
+        await video.play();
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") throw e;
+        if (mine !== gen.current) return;
+        await video.play(); // interrupted by a reload of the element: try once more
+      }
+      if (mine !== gen.current) return;
       setStatus("running");
       let last = -1;
       const loop = () => {
@@ -107,6 +121,7 @@ export function useFaceSignals(onFrame?: (s: FaceSignals) => void) {
       };
       raf.current = requestAnimationFrame(loop);
     } catch (e) {
+      if (mine !== gen.current) return; // a newer start/stop owns the camera now
       stop();
       setStatus("error");
       setError(e instanceof Error ? e.message : String(e));

@@ -69,12 +69,14 @@ export function useHolistic(onResult: (r: HolisticLandmarkerResult) => void) {
   const cb = useRef(onResult);
   cb.current = onResult;
   const raf = useRef<number>(0);
+  const gen = useRef(0); // bumped by every start/stop so a stale start (React StrictMode remount) can tell it was cancelled
   const stream = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string>("");
   const [fps, setFps] = useState(0);
 
   const stop = useCallback(() => {
+    gen.current += 1;
     cancelAnimationFrame(raf.current);
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
@@ -87,15 +89,27 @@ export function useHolistic(onResult: (r: HolisticLandmarkerResult) => void) {
   const start = useCallback(async () => {
     setError("");
     setStatus("loading");
+    const mine = ++gen.current;
     try {
       const [lm, media] = await Promise.all([
         getLandmarker(),
         navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" }, audio: false }),
       ]);
+      if (mine !== gen.current) {
+        media.getTracks().forEach((t) => t.stop()); // cancelled while the camera was opening
+        return;
+      }
       stream.current = media;
       const video = videoRef.current!;
       video.srcObject = media;
-      await video.play();
+      try {
+        await video.play();
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") throw e;
+        if (mine !== gen.current) return;
+        await video.play(); // interrupted by a reload of the element: try once more
+      }
+      if (mine !== gen.current) return;
       const canvas = canvasRef.current!;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -127,6 +141,7 @@ export function useHolistic(onResult: (r: HolisticLandmarkerResult) => void) {
       };
       raf.current = requestAnimationFrame(loop);
     } catch (e) {
+      if (mine !== gen.current) return; // a newer start/stop owns the camera now
       stop();
       setStatus("error");
       setError(e instanceof Error ? e.message : String(e));
