@@ -96,10 +96,10 @@ async def _plan_and_check(db: Session, user: User, run: AgentRun, goal: str, pla
             fields = sorted({f for fs in missing.values() for f in fs}, key=lambda f: order.index(f) if f in order else 9)
             nice = {"date": "which day", "time": "what time", "to": "who it is for", "text": "what it should say", "query": "your question"}
             what = {"book_appointment": "book the meeting", "check_slot": "book the meeting", "set_reminder": "set the reminder",
-                    "request_interpreter": "request the interpreter", "save_message": "prepare the message"}.get(effect, "do this")
+                    "request_interpreter": "request the interpreter", "save_message": "prepare the message", "order_meal": "place the order"}.get(effect, "do this")
             run.question = f"To {what}, I need to know {' and '.join(nice.get(f, f) for f in fields)}."
         else:
-            run.question = plan["ask"] or "What would you like me to do?"
+            run.question = orch.CANNOT if not plan["steps"] else (plan["ask"] or orch.CANNOT)
         trace.append({"t": orch._now_iso(), "node": "ask", "detail": run.question})
         run.steps, run.trace = json.dumps(steps), json.dumps(trace)
         return

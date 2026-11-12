@@ -10,7 +10,7 @@
     "mirror": 0.0,
     "norm": "clip",
     "k": 5,
-    "cv_ensemble": 2,
+    "cv_ensemble": 1,
     "ensemble": 5,
     "min_samples": 2,
     "no_cv": false,
@@ -19,12 +19,12 @@
   "recordings": 685,
   "sentences": 99,
   "method": "5-fold cross-validation, stratified by sentence: every recording is tested once by a model that never saw it",
-  "top1": 0.5693430656934306,
-  "top3": 0.7474452554744525,
+  "top1": 0.5430656934306569,
+  "top3": 0.727007299270073,
   "n": 685,
   "per_class": {
     "I am hungry.": {
-      "correct": 5,
+      "correct": 4,
       "total": 8
     },
     "Nice to meet you.": {
@@ -40,7 +40,7 @@
       "total": 7
     },
     "Bring water for me": {
-      "correct": 4,
+      "correct": 3,
       "total": 7
     },
     "Can i help you": {
@@ -48,7 +48,7 @@
       "total": 8
     },
     "Can you repeat that please": {
-      "correct": 2,
+      "correct": 3,
       "total": 7
     },
     "Comb your hair": {
@@ -56,7 +56,7 @@
       "total": 7
     },
     "Congratulations": {
-      "correct": 5,
+      "correct": 6,
       "total": 7
     },
     "Could you please talk slower": {
@@ -72,7 +72,7 @@
       "total": 6
     },
     "Do not be stubborn": {
-      "correct": 4,
+      "correct": 5,
       "total": 6
     },
     "Do not hurt me": {
@@ -80,7 +80,7 @@
       "total": 7
     },
     "Do not make me angry": {
-      "correct": 6,
+      "correct": 5,
       "total": 7
     },
     "Do not take it to the heart": {
@@ -92,7 +92,7 @@
       "total": 7
     },
     "Do you need something": {
-      "correct": 4,
+      "correct": 3,
       "total": 7
     },
     "Go and sleep": {
@@ -100,11 +100,11 @@
       "total": 8
     },
     "Had your food": {
-      "correct": 6,
+      "correct": 5,
       "total": 7
     },
     "He came by train": {
-      "correct": 4,
+      "correct": 3,
       "total": 7
     },
     "He is going into the room": {
@@ -116,11 +116,11 @@
       "total": 6
     },
     "He she is my friend": {
-      "correct": 7,
+      "correct": 6,
       "total": 7
     },
     "He would be coming today": {
-      "correct": 6,
+      "correct": 7,
       "total": 7
     },
     "Help me": {
@@ -136,7 +136,7 @@
       "total": 6
     },
     "How can i help you": {
-      "correct": 5,
+      "correct": 4,
       "total": 7
     },
     "How can i trust you": {
@@ -148,7 +148,7 @@
       "total": 7
     },
     "How old are you": {
-      "correct": 3,
+      "correct": 4,
       "total": 7
     },
     "I am (age)": {
@@ -184,11 +184,11 @@
       "total": 7
     },
     "I am really grateful": {
-      "correct": 1,
+      "correct": 2,
       "total": 7
     },
     "I am sitting in the class": {
-      "correct": 6,
+      "correct": 5,
       "total": 7
     },
     "I am so sorry to hear that": {
@@ -212,23 +212,23 @@
       "total": 7
     },
     "I do not agree": {
-      "correct": 4,
+      "correct": 3,
       "total": 7
     },
     "I do not like it": {
-      "correct": 4,
+      "correct": 2,
       "total": 7
     },
     "I do not mean it": {
-      "correct": 3,
+      "correct": 2,
       "total": 7
     },
     "I enjoyed a lot": {
-      "correct": 3,
+      "correct": 4,
       "total": 8
     },
     "I got hurt": {
-      "correct": 4,
+      "correct": 3,
       "total": 7
     },
     "I like you i love you": {
@@ -236,11 +236,11 @@
       "total": 8
     },
     "I need water": {
-      "correct": 6,
+      "correct": 5,
       "total": 7
     },
     "I promise": {
-      "correct": 4,
+      "correct": 3,
       "total": 7
     },
     "I really appreciate it": {
@@ -248,7 +248,7 @@
       "total": 7
     },
     "I somehow got to know about it": {
-      "correct": 5,
+      "correct": 4,
       "total": 7
     },
     "I was stopped by some one": {
@@ -256,7 +256,7 @@
       "total": 7
     },
     "It does not make any difference to me": {
-      "correct": 4,
+      "correct": 5,
       "total": 7
     },
     "It was nice chatting with you": {
@@ -268,7 +268,7 @@
       "total": 7
     },
     "My name is xxxxxxxx": {
-      "correct": 6,
+      "correct": 5,
       "total": 7
     },
     "Now onwards he will never hurt you": {
@@ -284,11 +284,11 @@
       "total": 7
     },
     "Serve the food": {
-      "correct": 5,
+      "correct": 4,
       "total": 9
     },
     "Shall we go outside": {
-      "correct": 5,
+      "correct": 4,
       "total": 7
     },
     "Speak softly": {
@@ -296,7 +296,7 @@
       "total": 8
     },
     "Take care of yourself": {
-      "correct": 5,
+      "correct": 6,
       "total": 7
     },
     "Tell me truth": {
@@ -308,7 +308,7 @@
       "total": 7
     },
     "That is so kind of you": {
-      "correct": 5,
+      "correct": 3,
       "total": 7
     },
     "This place is beautiful": {
@@ -332,7 +332,7 @@
       "total": 7
     },
     "What are you doing": {
-      "correct": 2,
+      "correct": 1,
       "total": 7
     },
     "What did you tell him": {
@@ -352,7 +352,7 @@
       "total": 7
     },
     "What happened": {
-      "correct": 2,
+      "correct": 1,
       "total": 6
     },
     "What have you planned for your career": {
@@ -372,15 +372,15 @@
       "total": 7
     },
     "Where are you from": {
-      "correct": 5,
+      "correct": 3,
       "total": 6
     },
     "Which collegeschool are you from": {
-      "correct": 4,
+      "correct": 3,
       "total": 7
     },
     "Who are you": {
-      "correct": 4,
+      "correct": 3,
       "total": 6
     },
     "Why are you angry": {
@@ -388,7 +388,7 @@
       "total": 7
     },
     "Why are you crying": {
-      "correct": 5,
+      "correct": 4,
       "total": 7
     },
     "Why are you disappointed": {
@@ -396,7 +396,7 @@
       "total": 7
     },
     "You are bad": {
-      "correct": 4,
+      "correct": 3,
       "total": 8
     },
     "You are good": {
@@ -412,7 +412,7 @@
       "total": 7
     },
     "You do anything, i do not care": {
-      "correct": 2,
+      "correct": 5,
       "total": 6
     },
     "You need a medicine, take this one": {
@@ -427,16 +427,6 @@
       "count": 4
     },
     {
-      "true": "I am really grateful",
-      "pred": "Nice to meet you.",
-      "count": 4
-    },
-    {
-      "true": "I am tired",
-      "pred": "I am feeling bored",
-      "count": 4
-    },
-    {
       "true": "Are you hiding something",
       "pred": "Do you need something",
       "count": 3
@@ -447,9 +437,44 @@
       "count": 3
     },
     {
-      "true": "What do you think",
-      "pred": "What are you doing",
+      "true": "Do not worry",
+      "pred": "Do not hurt me",
       "count": 3
+    },
+    {
+      "true": "How can i trust you",
+      "pred": "Why are you disappointed",
+      "count": 3
+    },
+    {
+      "true": "I am not really sure",
+      "pred": "It does not make any difference to me",
+      "count": 3
+    },
+    {
+      "true": "I am really grateful",
+      "pred": "Nice to meet you.",
+      "count": 3
+    },
+    {
+      "true": "I am tired",
+      "pred": "I am feeling bored",
+      "count": 3
+    },
+    {
+      "true": "That is so kind of you",
+      "pred": "Take care of yourself",
+      "count": 3
+    },
+    {
+      "true": "Where are you from",
+      "pred": "What you want",
+      "count": 3
+    },
+    {
+      "true": "I am hungry.",
+      "pred": "I am feeling cold",
+      "count": 2
     },
     {
       "true": "Nice to meet you.",
@@ -462,8 +487,13 @@
       "count": 2
     },
     {
-      "true": "Can you repeat that please",
-      "pred": "Wear the shirt",
+      "true": "Bring water for me",
+      "pred": "I need water",
+      "count": 2
+    },
+    {
+      "true": "Can i help you",
+      "pred": "How can i help you",
       "count": 2
     },
     {
@@ -477,6 +507,11 @@
       "count": 2
     },
     {
+      "true": "Do you need something",
+      "pred": "Serve the food",
+      "count": 2
+    },
+    {
       "true": "He is going into the room",
       "pred": "I am sitting in the class",
       "count": 2
@@ -484,41 +519,6 @@
     {
       "true": "Help me",
       "pred": "Can i help you",
-      "count": 2
-    },
-    {
-      "true": "Help me",
-      "pred": "Do me a favour",
-      "count": 2
-    },
-    {
-      "true": "How can i trust you",
-      "pred": "Why are you disappointed",
-      "count": 2
-    },
-    {
-      "true": "I am not really sure",
-      "pred": "It does not make any difference to me",
-      "count": 2
-    },
-    {
-      "true": "I can not help you there",
-      "pred": "How can i help you",
-      "count": 2
-    },
-    {
-      "true": "I can not help you there",
-      "pred": "Can i help you",
-      "count": 2
-    },
-    {
-      "true": "I do not agree",
-      "pred": "It does not make any difference to me",
-      "count": 2
-    },
-    {
-      "true": "Thank you so much",
-      "pred": "I am fine. thank you sir",
       "count": 2
     }
   ]

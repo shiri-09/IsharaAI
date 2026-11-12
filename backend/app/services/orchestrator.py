@@ -20,7 +20,7 @@ from .dialogue import SLOT_WINDOWS, _check_slot, _rule_fields
 from .knowledge import kb
 
 READ_ONLY = {"lookup_info", "check_slot", "translate"}
-EFFECTS = {"book_appointment", "set_reminder", "request_interpreter", "save_message"}
+EFFECTS = {"book_appointment", "set_reminder", "request_interpreter", "save_message", "order_meal"}
 TOOLS = READ_ONLY | EFFECTS
 
 TOOL_DOCS = {
@@ -30,6 +30,7 @@ TOOL_DOCS = {
     "set_reminder": "Set a reminder for the user. args: {text, date, time}",
     "request_interpreter": "Request a sign language interpreter. args: {event, date, time, place}",
     "save_message": "Save a message to send to someone (kept in the outbox). args: {to, text}",
+    "order_meal": "DEMO: record a meal order for the campus canteen (not sent to Swiggy or any app). args: {item, note}",
     "translate": "Translate text into Indian languages. args: {text, languages: [hi|kn|ta|te]}",
 }
 
@@ -51,9 +52,11 @@ INTENT = {
     "book_appointment": re.compile(r"\b(meet|meeting|appointment|book|schedule|see|set up|arrange|slot)\b", re.I),
     "set_reminder": re.compile(r"\b(remind|reminder|forget|alert me)\b", re.I),
     "request_interpreter": re.compile(r"\binterpreter\b", re.I),
+    "order_meal": re.compile(r"\b(order|meal|food|lunch|dinner|breakfast|snack|swiggy|zomato|canteen|hungry)\b", re.I),
     "save_message": re.compile(r"\b(tell|message|inform|let \w+ know|write to|email|text)\b", re.I),
 }
 INTENT["check_slot"] = INTENT["book_appointment"]
+PERSON = re.compile(r"\b(professor|prof|teacher|hod|doctor|sir|madam|counsel+or|advisor|mentor|dean|principal|faculty|lecturer)\b", re.I)
 
 _TIME = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)|\b(\d{1,2}):(\d{2})\b", re.I)
 _QUESTION = re.compile(r"^\s*(where|what|when|which|who|how|is|are|can|do|does)\b|\?\s*$", re.I)
@@ -122,6 +125,10 @@ def _date_time(text: str) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------- rule planner
+CANNOT = ("I can't do that one. I can book a meeting with a professor, set a reminder, request a sign language interpreter, "
+          "save a message for someone, place a demo meal order, or answer questions about the campus. I can't use other apps.")
+
+
 def rule_plan(goal: str) -> dict:
     """Deterministic fallback planner. Handles the common goals reliably without any model."""
     g = goal.lower()
@@ -137,6 +144,12 @@ def rule_plan(goal: str) -> dict:
             args["purpose"] = purpose.group(1).strip(" .")
         steps += [{"tool": "check_slot", "args": dict(args), "why": "Make sure the time is allowed and free"},
                   {"tool": "book_appointment", "args": args, "why": "Book the meeting"}]
+    if INTENT["order_meal"].search(g) and not steps:
+        m = re.search(r"\b(?:order|get me|book me|bring me|i want|i need|want|need)\s+(?:me\s+)?(?:a |an |some |the )?(.+?)(?:\s+(?:from|at|on|in|for|to|by)\b|[.!?]|$)", goal, re.I)
+        item = m.group(1).strip() if m else "a meal"
+        item = "a meal" if item.lower() in ("food", "meal", "a meal", "lunch", "dinner", "breakfast", "me") else item
+        extra = {"note": "asked for Swiggy; recorded in Ishara AI only"} if ("swiggy" in g or "zomato" in g) else {}
+        steps.append({"tool": "order_meal", "why": "Prepare the meal order", "args": {"item": item, **extra}})
     if re.search(r"\binterpreter\b", g):
         ev = re.search(r"\bfor (?:the |a |my )?(.+?)(?:\s+(?:on|at|tomorrow|today|in)\b|$)", goal, re.I)
         place = re.search(r"\bin (?:the )?([A-Za-z0-9 ]+?(?:hall|room|lab|auditorium|block))\b", goal, re.I)
@@ -152,14 +165,14 @@ def rule_plan(goal: str) -> dict:
         steps.append({"tool": "save_message", "why": "Prepare the message", "args": {"to": msg.group(1), "text": msg.group(2).strip(" .")}})
     if not steps and _QUESTION.search(goal):
         steps.append({"tool": "lookup_info", "args": {"query": goal}, "why": "Find the answer in the campus information"})
-    return {"steps": steps, "ask": "" if steps else "What would you like me to do? For example: book a meeting, set a reminder, or request an interpreter."}
+    return {"steps": steps, "ask": "" if steps else CANNOT}
 
 
 # ---------------------------------------------------------------------------------------------- validation
 def _missing(tool: str, args: dict) -> list[str]:
     need = {"check_slot": ["date", "time"], "book_appointment": ["date", "time"], "set_reminder": ["text", "date"],
             "request_interpreter": ["date", "time"], "save_message": ["to", "text"], "lookup_info": ["query"],
-            "translate": ["text"]}.get(tool, [])
+            "translate": ["text"], "order_meal": ["item"]}.get(tool, [])
     return [k for k in need if not str(args.get(k) or "").strip()]
 
 
@@ -194,6 +207,12 @@ def _clean_args(tool: str, args: dict, goal: str) -> dict:
         if who.lower() in ("", "professor", "the professor", "prof", "teacher", "the teacher", "sir", "madam"):
             who = "your " + ("teacher" if "teacher" in who.lower() else "professor")
         a["with"] = who
+    if tool == "order_meal":
+        item = re.sub(r"\b(swiggy|zomato|from|the|campus|canteen)\b", "", a.get("item", ""), flags=re.I).strip(" ,.")
+        a["item"] = item if item and item.lower() not in ("meal", "food") else "a meal"
+        a.pop("note", None)
+        if re.search(r"swiggy|zomato", goal, re.I):
+            a["note"] = "asked for a delivery app; recorded in Ishara AI only"
     if tool == "set_reminder" and a.get("text"):
         t = re.sub(r"^(to|please)\s+", "", a["text"], flags=re.I)
         a["text"] = t[:1].lower() + t[1:] if t[:2] != t[:2].upper() else t
@@ -207,9 +226,11 @@ def normalise_plan(raw: dict, goal: str, rules: dict | None = None) -> dict:
             continue
         if s["tool"] in INTENT and not INTENT[s["tool"]].search(goal):
             continue  # an action the user did not ask for
+        if s["tool"] in ("book_appointment", "check_slot") and not PERSON.search(goal):
+            continue  # "book me a meal" is not a meeting
         steps.append({"tool": s["tool"], "args": _clean_args(s["tool"], s.get("args") or {}, goal), "why": str(s.get("why") or "")[:160]})
-    # a lookup tacked onto an action is noise unless the user actually asked a question
-    if any(s["tool"] in EFFECTS for s in steps) and not _QUESTION.search(goal):
+    # a lookup is only for questions: never tacked onto an action or a request the agent cannot do
+    if not _QUESTION.search(goal):
         steps = [s for s in steps if s["tool"] != "lookup_info"]
     # an action the user clearly asked for that the model left out is added from the rule planner
     for r in (rules or {}).get("steps", []):
@@ -266,7 +287,7 @@ def next_free_slot(day: date, taken: set[tuple[str, str]], after: str | None = N
 def run_read_only(tool: str, args: dict, taken: set[tuple[str, str]]) -> dict:
     """-> {ok, result, data}"""
     if tool == "lookup_info":
-        hits = kb.search(args["query"], k=2)
+        hits = kb.search(args["query"], k=2, min_score=0.18)
         if not hits:
             return {"ok": False, "result": "I could not find this in the campus information."}
         p = hits[0][0]
@@ -303,6 +324,8 @@ def describe_effect(tool: str, a: dict) -> str:
         return f"Remind you to {a.get('text', '')} on {when}"
     if tool == "request_interpreter":
         return f"Request an ISL interpreter for {a.get('event', 'the event')} on {when}" + (f" in {a['place']}" if a.get("place") else "")
+    if tool == "order_meal":
+        return f"Order {a.get('item', 'a meal')} from the campus canteen (DEMO: recorded in Ishara AI, not sent to Swiggy or any delivery app)"
     if tool == "save_message":
         return f"Save a message to {a.get('to', '')}: \"{a.get('text', '')}\" (kept in your outbox, not sent)"
     if tool == "lookup_info":
@@ -314,7 +337,7 @@ def describe_effect(tool: str, a: dict) -> str:
     return tool
 
 
-REF_PREFIX = {"book_appointment": "ISH", "set_reminder": "REM", "request_interpreter": "INT", "save_message": "MSG"}
+REF_PREFIX = {"order_meal": "ORD", "book_appointment": "ISH", "set_reminder": "REM", "request_interpreter": "INT", "save_message": "MSG"}
 
 
 def reference(tool: str, action_id: int) -> str:

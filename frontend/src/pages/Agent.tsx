@@ -21,6 +21,7 @@ import {
   SkipForward,
   X,
   XCircle,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import CameraStage from "../components/CameraStage";
@@ -65,6 +66,7 @@ const TOOL_ICON: Record<string, LucideIcon> = {
   request_interpreter: Hand,
   save_message: Mail,
   translate: Languages,
+  order_meal: UtensilsCrossed,
 };
 const TOOL_NAME: Record<string, string> = {
   lookup_info: "Look up campus info",
@@ -74,6 +76,7 @@ const TOOL_NAME: Record<string, string> = {
   request_interpreter: "Request interpreter",
   save_message: "Save message",
   translate: "Translate",
+  order_meal: "Order meal (demo)",
 };
 
 export const STATUS: Record<Run["status"], { text: string; cls: string }> = {
@@ -92,6 +95,7 @@ const EXAMPLES = [
   "I need a sign language interpreter for the seminar on Wednesday at 2 PM in the main auditorium",
   "Remind me to submit my assignment on Friday at 5 PM",
   "Tell Priya that I will be late to class",
+  "Order lunch from Swiggy",
   "Where is the accessible washroom?",
   "Meet my professor",
 ];
