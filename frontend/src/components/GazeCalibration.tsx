@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Eye } from "lucide-react";
-import { calibrate, CAL_POINTS, calStore, FeatureSmoother, type CalPoint, type Calibration, type Pt } from "../lib/gaze";
+import { api } from "../lib/api";
+import { calibrate, CAL_POINTS, CHECK_POINTS, calStore, FeatureSmoother, type CalPoint, type Calibration, type Pt } from "../lib/gaze";
 import type { FaceSignals } from "../lib/useFaceSignals";
 
-type Step = { target: Pt; wiggle?: boolean };
-const STEPS: Step[] = [...CAL_POINTS.map((t) => ({ target: t })), { target: { x: 0.5, y: 0.5 }, wiggle: true }];
-const fresh = (): CalPoint[] => STEPS.map((st) => ({ target: st.target, frames: [], wiggle: st.wiggle }));
+type Step = { target: Pt; wiggle?: boolean; check?: boolean };
+const STEPS: Step[] = [
+  ...CAL_POINTS.map((t) => ({ target: t })),
+  ...CHECK_POINTS.map((t) => ({ target: t, check: true })),
+  { target: { x: 0.5, y: 0.5 }, wiggle: true },
+];
+const fresh = (): CalPoint[] => STEPS.map((st) => ({ target: st.target, frames: [], wiggle: st.wiggle, check: st.check }));
 
 /** The guided calibration: 9 dots, then one dot at the centre while the head turns. About 25 seconds, once. */
 export default function GazeCalibration({
@@ -66,6 +71,16 @@ export default function GazeCalibration({
           const c = calibrate(data.current, innerWidth, innerHeight);
           setResult(c ?? "fail");
           if (c) calStore.save(c);
+          // keep the raw calibration data on the server, so the model can be tuned on real faces later
+          const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
+          api("/api/gaze/log", {
+            body: {
+              w: innerWidth,
+              h: innerHeight,
+              result: c ? { errorPx: c.errorPx, errX: c.errX, errY: c.errY, perDot: c.perDot, lx: c.model.x.lambda, qx: c.model.x.quad, ly: c.model.y.lambda, qy: c.model.y.quad } : null,
+              points: data.current.map((p) => ({ target: p.target, wiggle: !!p.wiggle, check: !!p.check, frames: p.frames.map((f) => f.map(r4)) })),
+            },
+          }).catch(() => undefined);
         }
       }
     }, 25);
@@ -83,7 +98,7 @@ export default function GazeCalibration({
             <Eye className="mx-auto text-zinc-300" size={44} />
             <h2 className="chrome-text text-4xl font-semibold">Set up your eyes</h2>
             <p className="text-lg text-zinc-400">
-              A dot appears in 9 places. Look at each one until the ring fills. Then keep looking at the last dot while you slowly turn your head. About 25 seconds, once.
+              A dot appears in 13 places. Look at each one until the ring fills. Then keep looking at the last dot while you slowly turn your head. About 30 seconds, once.
             </p>
             <ul className="mx-auto max-w-md space-y-1 text-left text-sm text-zinc-500">
               <li>• Sit a hand to an arm's length from the camera, face lit from the front.</li>
@@ -123,7 +138,7 @@ export default function GazeCalibration({
               ))}
             </div>
             <p className="text-sm text-zinc-500">
-              {wiggle ? "Last step" : `Dot ${idx + 1} of ${CAL_POINTS.length}`}
+              {wiggle ? "Last step" : idx >= CAL_POINTS.length ? `Check dot ${idx - CAL_POINTS.length + 1} of ${CHECK_POINTS.length}` : `Dot ${idx + 1} of ${CAL_POINTS.length}`}
               {!seeFace && <span className="ml-3 text-red-400">I can't see your face. Move into view.</span>}
             </p>
           </div>
@@ -137,7 +152,7 @@ export default function GazeCalibration({
             ) : (
               <>
                 <h2 className="chrome-text text-4xl font-semibold">Eyes set up: {q}</h2>
-                <p className="text-lg text-zinc-400">Typical error about {Math.round(result.errorPx)} pixels on this screen.</p>
+                <p className="text-lg text-zinc-400">Measured on 4 check dots it had not seen: about {Math.round(result.errorPx)} pixels off ({Math.round(result.errX)} left-right, {Math.round(result.errY)} up-down).</p>
                 {result.errorPx >= 130 && <p className="text-sm text-amber-300/90">Tip: better light on your face, sit a little closer, and look at each dot with your eyes only. Then press Redo.</p>}
               </>
             )}

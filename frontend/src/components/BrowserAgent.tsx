@@ -14,6 +14,9 @@ export type BRun = {
   result: string;
   has_shot: boolean;
   shot_at: number;
+  plan?: string[];
+  plan_step?: number;
+  verified?: string;
 };
 type Mem = { key: string; label: string; value: string; uses: number };
 
@@ -27,8 +30,10 @@ const KIND_STYLE: Record<string, string> = {
   done: "text-emerald-300",
   error: "text-red-300",
   info: "text-zinc-400",
+  plan: "text-violet-300",
+  verify: "text-emerald-300",
 };
-const KIND_LABEL: Record<string, string> = { action: "Doing", thought: "Thinking", ask: "Asking you", answer: "You said", memory: "Memory", done: "Done", error: "Problem", info: "Note" };
+const KIND_LABEL: Record<string, string> = { action: "Doing", thought: "Thinking", ask: "Asking you", answer: "You said", memory: "Memory", done: "Done", error: "Problem", info: "Note", plan: "Plan", verify: "Checked" };
 
 /** A sensible first page for a goal when nobody typed one (the demo sites ship with the app). */
 export function guessUrl(goal: string): string {
@@ -56,6 +61,7 @@ export default function BrowserAgent({
   const [text, setText] = useState("");
   const [mem, setMem] = useState<Mem[]>([]);
   const [tick, setTick] = useState(0);
+  const [shown, setShown] = useState("");
   const spoken = useRef("");
   const logRef = useRef<HTMLDivElement>(null);
   const runRef = useRef<BRun | null>(null);
@@ -156,10 +162,39 @@ export default function BrowserAgent({
 
   const token = tokenStore.get() ?? "";
   const shotUrl = run?.has_shot ? `/api/browser/runs/${run.id}/screenshot?token=${encodeURIComponent(token)}&t=${Math.round(run.shot_at * 1000)}` : "";
+  // double buffer: load the next picture off-screen and swap only when it is ready, so the view never blanks or flickers
+  useEffect(() => {
+    if (!shotUrl || shotUrl === shown) return;
+    const im = new Image();
+    im.onload = () => setShown(shotUrl);
+    im.src = shotUrl;
+  }, [shotUrl, shown]);
   const BTN = aac ? "px-6 py-5 text-2xl" : "px-4 py-2.5 text-sm";
 
   return (
     <div className="flex flex-col gap-4">
+      {/* the plan, ticked off as the agent works */}
+      {run?.plan && run.plan.length > 0 && (
+        <div className="order-2 glass p-4">
+          <p className="label pb-2">Plan</p>
+          <ol className={`grid gap-1.5 ${aac ? "text-lg" : "text-sm"}`}>
+            {run.plan.map((t, i) => {
+              const n = i + 1;
+              const cur = run.plan_step ?? 0;
+              const done = n < cur || run.status === "done";
+              const now = n === cur && live;
+              return (
+                <li key={i} className={`flex items-start gap-2 ${done ? "text-zinc-500" : now ? "text-amber-100" : "text-zinc-400"}`}>
+                  <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[11px] ${done ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-300" : now ? "border-amber-400/60 bg-amber-400/15 text-amber-200" : "border-white/15 text-zinc-500"}`}>
+                    {done ? <Check size={11} /> : now ? <Loader2 size={11} className="animate-spin" /> : n}
+                  </span>
+                  <span className={done ? "line-through decoration-zinc-600" : ""}>{t}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
       {/* the live browser */}
       <div className="order-2 overflow-hidden rounded-2xl border border-white/10 bg-black">
         <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2">
@@ -182,7 +217,7 @@ export default function BrowserAgent({
         </div>
         <div className="relative aspect-[16/10] w-full bg-[#08090b]">
           {shotUrl ? (
-            <img key={tick} src={shotUrl} alt="What the agent sees" className="h-full w-full object-contain" />
+            <img src={shown || shotUrl} alt="What the agent sees" className="h-full w-full object-contain" />
           ) : (
             <div className="grid h-full place-items-center p-6 text-center text-sm text-zinc-500">
               <div className="space-y-2">
@@ -256,7 +291,10 @@ export default function BrowserAgent({
       {run && !live && run.result && (
         <div className={`order-1 flex items-start gap-3 rounded-2xl border p-4 ${run.status === "done" ? "border-emerald-400/40 bg-emerald-400/[0.07]" : "border-red-400/40 bg-red-400/[0.07]"}`}>
           {run.status === "done" ? <CheckCircle2 className="mt-0.5 text-emerald-300" /> : <XCircle className="mt-0.5 text-red-300" />}
-          <p className={`${aac ? "text-2xl" : "text-base"} text-zinc-100`}>{run.result}</p>
+          <div className="space-y-1">
+            <p className={`${aac ? "text-2xl" : "text-base"} text-zinc-100`}>{run.result}</p>
+            {run.verified && <p className="text-xs text-emerald-300/90">Checked on the page: {run.verified}</p>}
+          </div>
         </div>
       )}
       {error && <p className="order-1 text-sm text-red-400/90">{error}</p>}

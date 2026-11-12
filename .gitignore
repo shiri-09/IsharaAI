@@ -27,3 +27,4 @@ data/browser_profile/
 data/raw/s16/
 data/raw/s17/
 models/exp_batch*.sh
+data/gaze_logs/

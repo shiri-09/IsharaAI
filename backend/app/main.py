@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .db import Base, engine, migrate
 from .llm.router import llm
-from .routers import agent, auth, avatar, browser, chat, data, demo, live, prefs, recognize, tts
+from .routers import agent, auth, avatar, browser, chat, data, demo, gaze, live, prefs, recognize, tts
 
 logging.basicConfig(level=logging.INFO)
 Base.metadata.create_all(engine)
@@ -23,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, chat.router, tts.router, data.router, recognize.router, prefs.router, avatar.router, live.router, agent.router, browser.router, demo.router):
+for r in (auth.router, chat.router, tts.router, data.router, recognize.router, prefs.router, avatar.router, live.router, agent.router, browser.router, demo.router, gaze.router):
     app.include_router(r)
 
 

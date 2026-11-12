@@ -26,6 +26,7 @@ from sqlalchemy import select
 
 from ..config import settings
 from ..db import SessionLocal
+from ..llm.base import strip_thinking
 from ..llm.router import llm
 from ..models import AgentMemory
 
@@ -74,7 +75,8 @@ OBSERVE_JS = r"""() => {
     const text = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 70);
     let label = '';
     if (el.id) { const l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l) label = l.innerText.trim().replace(/\s+/g, ' ').slice(0, 60); }
-    if (!label) { const l = el.closest('label'); if (l) label = l.innerText.trim().replace(/\s+/g, ' ').split('\n')[0].slice(0, 60); }
+    const search = type === 'search' || el.getAttribute('role') === 'searchbox' || /search|query|\bq\b/i.test((el.getAttribute('name') || '') + ' ' + (el.getAttribute('placeholder') || '') + ' ' + (el.getAttribute('aria-label') || ''));
+    if (!label) { const l = el.closest('label'); if (l) label = Array.from(l.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join(' ').trim().replace(/\s+/g, ' ').slice(0, 60) || l.innerText.trim().split('\n')[0].slice(0, 60); }
     let ctx = '';
     if (tag === 'button' || tag === 'a' || el.getAttribute('role') === 'button') {
       // the card this button belongs to: climb until the parent would also hold another button with the same label
@@ -90,12 +92,13 @@ OBSERVE_JS = r"""() => {
     el.setAttribute('data-ia', String(id));
     const r = el.getBoundingClientRect();
     out.push({ id, tag, type, text, label, placeholder: el.getAttribute('placeholder') || '', name: el.getAttribute('name') || '',
-      value: (tag === 'input' || tag === 'textarea' || tag === 'select') ? (el.value || '').slice(0, 60) : '', checked: !!el.checked, disabled: !!el.disabled,
+      search, value: (tag === 'input' || tag === 'textarea' || tag === 'select') ? (el.value || '').slice(0, 60) : '', checked: !!el.checked, disabled: !!el.disabled,
       ctx: ctx === text ? '' : ctx, options: tag === 'select' ? Array.from(el.options).map(o => o.text.trim()).filter(Boolean).slice(0, 20) : undefined,
       inView: r.top >= 0 && r.bottom <= innerHeight });
     id++; if (id > 80) break;
   }
-  return { url: location.href, title: document.title, text: (document.body.innerText || '').trim().replace(/\n{2,}/g, '\n').slice(0, 1400),
+  const main = document.querySelector('main, article, [role=main], #content') || document.body;
+  return { url: location.href, title: document.title, text: (main.innerText || document.body.innerText || '').trim().replace(/\n{2,}/g, '\n').slice(0, 3200),
            elements: out, atBottom: innerHeight + scrollY >= document.body.scrollHeight - 4 };
 }"""
 
@@ -141,7 +144,7 @@ def fmt_elements(els: list[dict]) -> str:
 
 SYSTEM = """You are Ishara's browser agent. You operate a real web browser for a person who may be Deaf or may use only eye gestures, so questions must be short and clear.
 You see the page as numbered elements. Reply with ONE JSON object and nothing else:
-{"thought": "<one short sentence>", "action": "click|type|select|goto|scroll|wait|ask_user|done|fail", "id": <element number>, "text": "<text to type or the option to select>", "field": "<name of the personal detail being typed: name, phone, address, email or notes; empty if it is not a personal detail>", "url": "<for goto>", "question": "<for ask_user>", "kind": "choice|text|confirm|continue", "options": ["<for choice>"], "message": "<for done or fail>"}
+{"thought": "<one short sentence>", "step": <number of the plan step you are working on>, "action": "click|type|select|key|goto|back|scroll|wait|ask_user|done|fail", "id": <element number>, "text": "<text to type, the option to select, the key (Enter, Escape, Tab) or the scroll direction (up, down)>", "submit": <true to press Enter after typing, for search boxes>, "field": "<name of the personal detail being typed: name, phone, address, email or notes; empty if it is not a personal detail>", "url": "<for goto>", "question": "<for ask_user>", "kind": "choice|text|confirm|continue", "options": ["<for choice>"], "message": "<for done or fail>"}
 Rules:
 - Work toward the goal one small step at a time. One action per reply.
 - Never invent personal details. If a field needs one (name, phone, address, email, delivery notes), use action "type" with "field" set and leave "text" empty. The app fills it from memory or asks the person.
@@ -153,7 +156,17 @@ Rules:
 - After the person answers a question, act on the answer; never ask the same thing again.
 - Never type passwords, card numbers, OTPs or UPI PINs. If login or payment is needed, use ask_user with kind "continue" asking the person to do it in the browser window.
 - "select" is for dropdowns (a select element): text is the option to choose.
+- To search a site, type into its search box with "submit": true. Use "back" to return to the previous page.
+- If no page is open and you do not know the right site, goto https://duckduckgo.com/?q=<a few words> and continue from the results.
+- If a cookie or sign-up pop-up blocks the page, close it or choose the option that rejects non-essential cookies.
+- If something you need is not in the list, scroll down (or up) to find it.
+- If the goal is a question, find the answer on the page and finish with done, putting the answer in "message".
 - When the goal is finished, use done with a short message (include any order or reference number you can see). Use fail only if it is impossible."""
+
+
+PLAN_SYSTEM = """You plan tasks for a browser agent that helps a Deaf or eye-gaze user. Given a goal (and maybe a start page), write the
+plan as 3 to 6 very short steps a person can follow, such as "Open the menu", "Choose a dish (ask you)", "Fill in delivery details",
+"Confirm with you, then place the order", "Read back the order number". Reply with JSON only: {"steps": ["...", "..."]}"""
 
 
 # ---------------------------------------------------------------------------------------------- the run
@@ -176,6 +189,9 @@ class BrowserRun:
     _n: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock)
     conv_id: int | None = None
+    plan: list[str] = field(default_factory=list)
+    plan_step: int = 0
+    verified: str = ""
 
     def emit(self, kind: str, text: str, **data) -> None:
         with self._lock:
@@ -185,19 +201,41 @@ class BrowserRun:
 
     def state(self) -> dict:
         return {"id": self.id, "goal": self.goal, "status": self.status, "events": list(self.events), "ask": self.ask, "result": self.result,
-                "headless": self.headless, "has_shot": bool(self.shot), "shot_at": self.shot_at}
+                "headless": self.headless, "has_shot": bool(self.shot), "shot_at": self.shot_at,
+                "plan": self.plan, "plan_step": self.plan_step, "verified": self.verified}
 
 
 RUNS: dict[str, BrowserRun] = {}
 _counter = 0
 
 
-def _llm_call(user: str):
-    """Playwright's sync mode keeps an event loop alive in the agent thread, so the async LLM call runs in a thread of its own."""
+def _llm_call(user: str, system: str | None = None):
+    """One decision from the local model. Called directly (not through the async router) because Playwright's sync mode keeps
+    an event loop alive in this thread. Two settings matter for reliability: a context window big enough for a whole page
+    (Ollama's default is small and silently cuts the start of the prompt, i.e. the rules), and JSON mode so the reply always
+    parses. If Ollama is not there, fall back to the normal router (Gemini) in a thread of its own."""
+    import httpx
+
+    if settings.ollama_model:
+        payload = {
+            "model": settings.ollama_model,
+            "messages": [{"role": "system", "content": system or SYSTEM}, {"role": "user", "content": user}],
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.2, "num_ctx": 16384},
+        }
+        if settings.ollama_send_think:
+            payload["think"] = settings.ollama_think
+        try:
+            r = httpx.post(f"{settings.ollama_url}/api/chat", json=payload, timeout=settings.llm_timeout)
+            r.raise_for_status()
+            return strip_thinking(r.json()["message"]["content"]), "ollama"
+        except Exception as e:  # noqa: BLE001
+            log.warning("ollama direct call failed, using the router: %r", e)
     from concurrent.futures import ThreadPoolExecutor
 
     with ThreadPoolExecutor(max_workers=1) as ex:
-        return ex.submit(lambda: asyncio.run(llm.chat([{"role": "user", "content": user}], SYSTEM))).result()
+        return ex.submit(lambda: asyncio.run(llm.chat([{"role": "user", "content": user}], system or SYSTEM))).result()
 
 
 def _parse_json(out: str) -> dict:
@@ -223,6 +261,8 @@ class Agent:
         self.confirmed: set[str] = set()
         self.repeat: dict[str, int] = {}
         self.answered: dict[str, str] = {}
+        self.picked: dict[str, int] = {}
+        self.preconfirmed = 0.0
         self.vague = 0
 
     # ---- memory (database, personal to this user)
@@ -314,13 +354,72 @@ class Agent:
         return None
 
     def observe(self) -> dict:
+        prev = getattr(self, "obs", None)
+        # a click that opened a new tab: continue there
+        live = [pg for pg in self.ctx.pages if not pg.is_closed()]
+        if live and live[-1] is not self.page:
+            self.page = live[-1]
+            try:
+                self.page.bring_to_front()
+            except Exception:  # noqa: BLE001
+                pass
+            self.history.append(f"a new tab opened: {self.page.url}")
         try:
             self.page.wait_for_load_state("domcontentloaded", timeout=4000)
         except Exception:  # noqa: BLE001
             pass
         self.obs = self.page.evaluate(OBSERVE_JS)
+        if prev and (prev["url"] != self.obs["url"] or prev["title"] != self.obs["title"]):
+            self.history.append(f'-> now on "{self.obs["title"][:60]}" ({self.obs["url"][:90]})')
         self.snap()
         return self.obs
+
+    def _settle(self) -> None:
+        """Give the page a moment after an action: a navigation, a network request, an animation."""
+        self.page.wait_for_timeout(350)
+        try:
+            self.page.wait_for_load_state("domcontentloaded", timeout=4000)
+            self.page.wait_for_load_state("networkidle", timeout=1500)
+        except Exception:  # noqa: BLE001 - busy pages never go idle; that is fine
+            pass
+
+    def make_plan(self) -> None:
+        user = f"GOAL: {self.run.goal}\nSTART PAGE: {self.run.start_url or '(none)'}"
+        try:
+            out, _ = _llm_call(user, PLAN_SYSTEM)
+            steps = [str(x).strip() for x in (_parse_json(out).get("steps") or []) if str(x).strip()][:6]
+        except Exception:  # noqa: BLE001 - no plan is not fatal
+            steps = []
+        if steps:
+            self.run.plan = steps
+            self.run.plan_step = 1
+            self.run.emit("plan", "Plan: " + " -> ".join(steps))
+
+    def verify(self, message: str = "") -> None:
+        """Check the finished page for proof and say what was found. After something was submitted: a reference number or a
+        confirmation. For a question: whether the answer's key words and numbers really are on the page it was read from."""
+        try:
+            text = self.page.evaluate("() => document.body.innerText") or ""
+            title = self.page.title()
+        except Exception:  # noqa: BLE001
+            return
+        if not self.confirmed:
+            keys = re.findall(r"\b\d{2,}\b|\b[A-Z][a-z]{3,}\b", message)
+            hits = [k for k in dict.fromkeys(keys) if k in text]
+            if hits:
+                self.run.verified = f'read from "{title[:60]}"'
+                self.run.emit("verify", f'The answer comes from the page "{title[:60]}" ({", ".join(hits[:4])} found there). Please check it is the right page.')
+            else:
+                self.run.emit("info", "I could not find the answer's words on the page. Treat it with care.")
+            return
+        refs = re.findall(r"\b[A-Z]{2,5}-?\d{3,8}\b", text)
+        ok = re.search(r"(order (is )?placed|confirmed|request sent|booked|success|thank you)", text, re.I)
+        if refs or ok:
+            found = (f"reference {refs[0]}" if refs else "") + (" and " if refs and ok else "") + (f'"{ok.group(0)}" on the page' if ok else "")
+            self.run.verified = found
+            self.run.emit("verify", f"Checked the page: {found}.")
+        else:
+            self.run.emit("info", "I could not find a confirmation on the page. Please check the browser window.")
 
     # ---- the model decides
     def decide(self, note: str = "") -> dict:
@@ -328,13 +427,14 @@ class Agent:
         known = ", ".join(sorted(mem)) or "nothing yet"
         user = (
             f"GOAL: {self.run.goal}\nI can fill these personal details from memory: {known}.\n"
-            f"RECENT STEPS:\n" + ("\n".join(self.history[-8:]) or "(none yet)") + "\n\n"
+            + ("PLAN:\n" + "\n".join(f"{i + 1}. {t}" for i, t in enumerate(self.run.plan)) + "\n" if self.run.plan else "")
+            + "RECENT STEPS:\n" + ("\n".join(self.history[-8:]) or "(none yet)") + "\n\n"
             f"PAGE: {self.obs['title']} ({self.obs['url']})\n"
-            f"VISIBLE TEXT:\n{self.obs['text'][:900]}\n\nELEMENTS:\n{fmt_elements(self.obs['elements'])}\n"
+            f"VISIBLE TEXT:\n{self.obs['text'][:2200]}\n\nELEMENTS:\n{fmt_elements(self.obs['elements'])}\n"
             + (f"\nNOTE: {note}\n" if note else "")
             + '\nReply with the JSON object only.'
         )
-        for attempt in range(2):
+        for attempt in range(3):
             try:
                 out, provider = _llm_call(user)
             except RuntimeError as e:
@@ -350,6 +450,12 @@ class Agent:
         """Perform one decided action. Returns False to end the run."""
         act = str(d.get("action", "")).lower()
         thought = str(d.get("thought", ""))[:160]
+        try:
+            st = int(d.get("step") or 0)
+            if 1 <= st <= len(self.run.plan) and st >= self.run.plan_step:
+                self.run.plan_step = st
+        except (TypeError, ValueError):
+            pass
         eid = d.get("id")
         eid = int(eid) if isinstance(eid, (int, float, str)) and str(eid).lstrip("-").isdigit() else None
         fp = hash((self.obs["url"], self.obs["text"][:600], tuple((e["id"], e["value"], e["checked"]) for e in self.obs["elements"])))
@@ -365,6 +471,8 @@ class Agent:
             return True
 
         if act == "done":
+            self.verify(str(d.get("message") or ""))
+            self.run.plan_step = len(self.run.plan) + 1
             self.run.result = str(d.get("message") or "Done.")
             self.run.emit("done", self.run.result)
             self.run.status = "done"
@@ -389,7 +497,7 @@ class Agent:
             PERSONAL_Q = re.compile(r"(name|phone|mobile|e-?mail|address|room|block)", re.I)
             if kind == "text" and PERSONAL_Q.search(q) and not is_sensitive(q):
                 ck = canon(q)
-                val = self.memory_get(ck)
+                val = self.memory_get(ck) if ck in STABLE else None
                 if val:
                     self.run.emit("memory", f"Using your saved {ck}: {val}")
                     self.history.append(f'The person {ck} is "{val}". Type it into the right field with action type and field "{ck}".')
@@ -410,9 +518,12 @@ class Agent:
             if ans is None:
                 return False
             self.answered[key] = ans
-            if kind == "confirm" and ans.lower() not in ("yes", "y", "ok", "confirm", "go ahead"):
+            if kind == "confirm" and ans.lower() not in ("yes", "y", "ok", "okay", "confirm", "go ahead", "sure"):
                 self.history.append(f"Asked '{q}' -> the person said NO. Do not do it.")
                 self.run.emit("info", "Okay, I will not do that.")
+            elif kind == "confirm":
+                self.preconfirmed = time.time() + 90  # the next sending click is covered by this yes
+                self.history.append(f"Asked '{q}' -> the person said YES. Go ahead and click the button now.")
             else:
                 self.history.append(f"Asked '{q}' -> person answered: {ans}")
             return True
@@ -421,10 +532,26 @@ class Agent:
             self.history.append("waited")
             return True
         if act == "scroll":
-            self.run.emit("action", "Scroll down", thought=thought)
-            self.page.mouse.wheel(0, 600)
+            up = str(d.get("text") or "").lower().startswith("up")
+            self.run.emit("action", "Scroll up" if up else "Scroll down", thought=thought)
+            self.page.mouse.wheel(0, -600 if up else 600)
             self.page.wait_for_timeout(400)
-            self.history.append("scrolled down")
+            self.history.append("scrolled up" if up else "scrolled down")
+            return True
+        if act == "key":
+            key = {"enter": "Enter", "escape": "Escape", "esc": "Escape", "tab": "Tab"}.get(str(d.get("text") or "").strip().lower())
+            if not key:
+                self.history.append("key must be Enter, Escape or Tab")
+                return True
+            self.run.emit("action", f"Press {key}", thought=thought)
+            self.page.keyboard.press(key)
+            self._settle()
+            self.history.append(f"pressed {key}")
+            return True
+        if act == "back":
+            self.run.emit("action", "Go back", thought=thought)
+            self.page.go_back(wait_until="domcontentloaded", timeout=15000)
+            self.history.append("went back")
             return True
         if act == "goto":
             url = str(d.get("url") or "")
@@ -444,6 +571,12 @@ class Agent:
         name = el["text"] or el["label"] or el["placeholder"] or el["name"] or el["tag"]
 
         if act == "click":
+            # a choice already made: do not add a second dish just because the button is there
+            group0 = [e for e in self.obs["elements"] if e["tag"] == el["tag"] and e["text"] == el["text"] and e["ctx"] and not e["disabled"]]
+            gk0 = f"group:{el['text']}:{len(group0)}"
+            if len(group0) >= 3 and gk0 in self.answered and self.picked.get(gk0) is not None:
+                self.history.append(f'Already did "{el["text"]}" for "{self.answered[gk0][:40]}" as the person chose. Move on to the next step.')
+                return True
             # Several identical buttons (Add to cart on every dish, Book on every slot): it is a choice, so the person picks.
             group = [e for e in self.obs["elements"] if e["tag"] == el["tag"] and e["text"] == el["text"] and e["ctx"] and not e["disabled"]]
             gkey = f"group:{el['text']}:{len(group)}"
@@ -467,19 +600,31 @@ class Agent:
                 if pick is None:
                     self.history.append(f'The person wants "{ans}". Click the matching "{el["text"]}" button.')
                     return True
+                self.picked[gkey] = pick["id"]
                 el = pick
                 eid = pick["id"]
                 loc = self.page.locator(f'[data-ia="{eid}"]').first
                 name = el["text"]
-            if (RISKY_CLICK.search(name) or RISKY_CLICK.search(el["ctx"][:30])) and sig not in self.confirmed and el["tag"] in ("button", "a", "input"):
-                ans = self.ask("confirm", f'I am about to click "{name}". Shall I go ahead?')
+            if (RISKY_CLICK.search(name) or RISKY_CLICK.search(el["ctx"][:30])) and sig not in self.confirmed and el["tag"] in ("button", "a", "input") and time.time() > self.preconfirmed:
+                # say exactly what will be sent: the filled-in fields and any total on the page
+                filled = [
+                    f'{(e["label"] or e["placeholder"] or e["name"]).split(" (")[0]}: {e["value"]}'
+                    for e in self.obs["elements"]
+                    if e["tag"] in ("input", "textarea", "select") and e["value"] and not is_sensitive(e["label"], e["name"], e["type"])
+                ][:6]
+                total = re.search(r"total[:\s]*(rs\.?|₹)?\s*[\d,]+", self.obs["text"], re.I)
+                extra = (" " + "; ".join(filled) + "." if filled else "") + (f" {total.group(0)}." if total else "")
+                ans = self.ask("confirm", f'Shall I click "{name}"?{extra}')
                 if ans is None:
                     return False
-                if ans.lower() not in ("yes", "y", "ok", "confirm", "go ahead"):
+                if ans.lower() not in ("yes", "y", "ok", "okay", "confirm", "go ahead", "sure"):
                     self.history.append(f'the person said NO to clicking "{name}"')
                     self.run.emit("info", "Okay, I will not click it.")
                     return True
                 self.confirmed.add(sig)
+            elif time.time() <= self.preconfirmed and RISKY_CLICK.search(name):
+                self.confirmed.add(sig)
+                self.preconfirmed = 0.0
             self.run.status = "acting"
             self.run.emit("action", f'Click "{name}"' + (f" ({el['ctx'][:50]})" if el["ctx"] else ""), thought=thought)
             if not self.move_to(loc):
@@ -487,7 +632,7 @@ class Agent:
                 return True
             self.page.mouse.down()
             self.page.mouse.up()
-            self.page.wait_for_timeout(500)
+            self._settle()
             self.history.append(f'clicked "{name}"' + (f" ({el['ctx'][:40]})" if el["ctx"] else ""))
             self.snap()
             return True
@@ -523,7 +668,7 @@ class Agent:
             from_memory = False
             if fld or not text:
                 key = canon(fld or label)
-                val = self.memory_get(key)
+                val = self.memory_get(key) if key in STABLE else None
                 if val:
                     text, from_memory = val, True
                     self.run.emit("memory", f'Using your saved {fld or label}: {val}')
@@ -551,7 +696,13 @@ class Agent:
                 self.page.keyboard.type(text[i : i + 4], delay=35)
                 if (i // 4) % 3 == 0:
                     self.snap()
-            self.history.append(f'typed into "{label}"')
+            sub = d.get("submit")
+            if sub is True or str(sub).lower() == "true" or (el.get("search") and str(sub).lower() not in ("false", "0")):
+                self.page.keyboard.press("Enter")
+                self._settle()
+                self.history.append(f'typed into "{label}" and pressed Enter')
+            else:
+                self.history.append(f'typed into "{label}"')
             self.snap()
             return True
 
@@ -581,6 +732,8 @@ class Agent:
                     r.emit("action", f"Open {urlparse(r.start_url).netloc}{urlparse(r.start_url).path}")
                 else:
                     self.page.goto("about:blank")
+                r.status = "thinking"
+                self.make_plan()
                 for step in range(MAX_STEPS):
                     if r.stop.is_set():
                         break

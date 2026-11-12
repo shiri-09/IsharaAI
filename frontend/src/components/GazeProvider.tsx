@@ -299,8 +299,8 @@ export default function GazeProvider({ children }: { children: ReactNode }) {
       }
       const x = Math.max(0, Math.min(innerWidth, g.x * innerWidth));
       const y = Math.max(0, Math.min(innerHeight, g.y * innerHeight));
-      setGaze({ x, y });
-      const tol = Math.max(30, Math.min(110, (S.cal?.errorPx ?? 120) * 0.75));
+      // the "magnet": how far from a target the gaze may land and still pick it, matched to the measured accuracy
+      const tol = Math.max(40, Math.min(170, (S.cal?.errorPx ?? 140) * 0.9));
       // scroll the page when the eyes rest at the very top or bottom edge
       if (y > innerHeight * 0.94) window.scrollBy(0, 9 + (y / innerHeight - 0.94) * 260);
       else if (y < innerHeight * 0.05) window.scrollBy(0, -(9 + (0.05 - y / innerHeight) * 260));
@@ -319,6 +319,11 @@ export default function GazeProvider({ children }: { children: ReactNode }) {
         else d.since = now;
         setHoverEl(el);
       }
+      // the circle settles on the target it is selecting (it is choosing that target anyway), so it does not look lost
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setGaze({ x: x + (r.left + r.width / 2 - x) * 0.7, y: y + (r.top + r.height / 2 - y) * 0.7 });
+      } else setGaze({ x, y });
 
       // eyebrows up = YES: choose what you are looking at, or press a visible Yes
       if (S.selMode !== "dwell" && f.face && b.armed && b.rise > BROW_RISE && now > d.cool) {
