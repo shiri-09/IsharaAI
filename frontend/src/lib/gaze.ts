@@ -52,8 +52,9 @@ export function headPose(m: ArrayLike<number> | undefined): number[] {
  *  8 blendshape h         9 blendshape v    10..12 head yaw, pitch, roll (matrix)   13..15 head tx, ty, tz
  *  16 right iris x        17 right iris y   18 left iris x   19 left iris y
  *  20 eye opening (lid gap / eye width)     21 blink   22 squint   23 wide
+ *  24 gaze network yaw   25 gaze network pitch (MobileGaze, see lib/gazeNet.ts)
  */
-export function baseFeatures(p: Pt[] | undefined, bs?: EyeBs, hp?: number[]): Feat | null {
+export function baseFeatures(p: Pt[] | undefined, bs?: EyeBs, hp?: number[], net?: [number, number]): Feat | null {
   if (!p || p.length < 478) return null;
   const [rx, ry] = eyeFeatures(p, 33, 133, 468); // subject's right eye (image left)
   const [lx, ly] = eyeFeatures(p, 362, 263, 473); // subject's left eye (image right)
@@ -70,6 +71,7 @@ export function baseFeatures(p: Pt[] | undefined, bs?: EyeBs, hp?: number[]): Fe
     (rx + lx) / 2, (ry + ly) / 2, yaw, pitch, roll, mid.x, mid.y, width,
     bs?.h ?? 0, bs?.v ?? 0, h[0], h[1], h[2], h[3], h[4], h[5],
     rx, ry, lx, ly, open, bs?.blink ?? 0, bs?.squint ?? 0, bs?.wide ?? 0,
+    net?.[0] ?? 0, net?.[1] ?? 0, // 24, 25: gaze network yaw and pitch (degrees), 0 when it is not running
   ];
 }
 
@@ -82,17 +84,17 @@ export function baseFeatures(p: Pt[] | undefined, bs?: EyeBs, hp?: number[]): Fe
 function designX(f: Feat): number[] {
   const g = (i: number) => f[i] ?? 0;
   const ix = g(0), bh = g(8);
-  return [1, ix, g(16), g(18), bh, g(2), g(10), g(4), g(12), g(5), g(7), g(13), ix * ix, bh * bh, ix * bh];
+  return [1, ix, g(16), g(18), bh, g(24), g(2), g(10), g(4), g(12), g(5), g(7), g(13), ix * ix, bh * bh, ix * bh];
 }
-const PEN_X = [0, 1, 1, 1, 1, 1.5, 1.5, 2, 2, 2, 2, 2, 6, 6, 6];
+const PEN_X = [0, 1, 1, 1, 1, 1, 1.5, 1.5, 2, 2, 2, 2, 2, 6, 6, 6];
 function designY(f: Feat): number[] {
   const g = (i: number) => f[i] ?? 0;
   const iy = g(1), bv = g(9), op = g(20);
-  return [1, iy, g(17), g(19), bv, g(3), g(11), op, g(21), g(22), g(23), g(6), g(15), g(14), iy * iy, bv * bv, op * op, iy * bv];
+  return [1, iy, g(17), g(19), bv, g(25), g(3), g(11), op, g(21), g(22), g(23), g(6), g(15), g(14), iy * iy, bv * bv, op * op, iy * bv];
 }
-const PEN_Y = [0, 1, 1, 1, 1, 1.5, 1.5, 1, 1.5, 1.5, 1.5, 2, 2, 2, 6, 6, 6, 6];
-const QUAD_X = 12; // index where the quadratic terms start
-const QUAD_Y = 14;
+const PEN_Y = [0, 1, 1, 1, 1, 1, 1.5, 1.5, 1, 1.5, 1.5, 1.5, 2, 2, 2, 6, 6, 6, 6];
+const QUAD_X = 13; // index where the quadratic terms start
+const QUAD_Y = 15;
 
 function solve(A: number[][], B: number[]): number[] {
   const n = B.length;
@@ -186,7 +188,7 @@ export type Calibration = {
   h: number;
   at: number;
   perDot?: number[];
-  v: 3;
+  v: 4;
   bx?: number;
   by?: number;
 };
@@ -274,7 +276,7 @@ export function calibrate(points: CalPoint[], w: number, h: number): Calibration
   const all = samplesOf(usable);
   const model = { x: fitAxis(all, "x", cx.lambda, cx.quad), y: fitAxis(all, "y", cy.lambda, cy.quad) };
   const errorPx = perDot.reduce((a, b) => a + b, 0) / perDot.length;
-  return { model, errorPx, errX: cx.err, errY: cy.err, w, h, at: Date.now(), perDot, v: 3 };
+  return { model, errorPx, errX: cx.err, errY: cy.err, w, h, at: Date.now(), perDot, v: 4 };
 }
 
 const KEY = "ishara.gaze.calibration";
@@ -283,7 +285,7 @@ export const calStore = {
     try {
       const raw = localStorage.getItem(KEY);
       const c = raw ? (JSON.parse(raw) as Calibration) : null;
-      return c && c.v === 3 ? c : null; // an older, differently shaped calibration is discarded
+      return c && c.v === 4 ? c : null; // an older, differently shaped calibration is discarded
     } catch {
       return null;
     }

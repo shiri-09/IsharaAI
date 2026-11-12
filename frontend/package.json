@@ -7,12 +7,13 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "postinstall": "node -e \"require('fs').cpSync('node_modules/@mediapipe/tasks-vision/wasm','public/mediapipe/wasm',{recursive:true})\""
+    "postinstall": "node -e \"const fs=require('fs');fs.cpSync('node_modules/@mediapipe/tasks-vision/wasm','public/mediapipe/wasm',{recursive:true});fs.mkdirSync('public/ort',{recursive:true});for(const f of ['ort-wasm-simd-threaded.wasm','ort-wasm-simd-threaded.mjs'])fs.copyFileSync('node_modules/onnxruntime-web/dist/'+f,'public/ort/'+f)\""
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.2.3",
     "@supabase/supabase-js": "^2.119.0",
     "lucide-react": "^1.72.0",
+    "onnxruntime-web": "^1.20.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5"

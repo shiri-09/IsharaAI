@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FaceLandmarker, FilesetResolver, type Category } from "@mediapipe/tasks-vision";
 import { baseFeatures, eyeBlendshapes, headPose, type Feat } from "./gaze";
+import { latest as netGaze, maybeRun as runGazeNet } from "./gazeNet";
 
 // served from our own server (works offline and behind firewalls); the Google copy is only a fallback
 const MODEL_URLS = [
@@ -129,7 +130,8 @@ export function useFaceSignals(onFrame?: (s: FaceSignals) => void) {
             s.brow = s.brow * 0.5 + score(cats, "browInnerUp") * 0.5;
             s.jaw = s.jaw * 0.5 + score(cats, "jawOpen") * 0.5;
             s.blink = Math.max(score(cats, "eyeBlinkLeft"), score(cats, "eyeBlinkRight"));
-            s.gf = baseFeatures(pts, eyeBlendshapes((n) => score(cats, n)), headPose(r.facialTransformationMatrixes?.[0]?.data));
+            runGazeNet(video, pts);
+            s.gf = baseFeatures(pts, eyeBlendshapes((n) => score(cats, n)), headPose(r.facialTransformationMatrixes?.[0]?.data), netGaze());
             s.face = true;
           } else {
             s.face = false;
