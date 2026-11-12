@@ -209,6 +209,19 @@ RUNS: dict[str, BrowserRun] = {}
 _counter = 0
 
 
+def _kill_profile_chrome(marker: str) -> None:
+    """Close Chrome windows that were opened by an earlier agent run (their command line contains our profile folder)."""
+    import subprocess
+
+    m = marker.replace("/", "\\").replace("'", "''")
+    cmd = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Where-Object { $_.CommandLine -like '*" + m + "*' } "
+           "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }")
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command", cmd], timeout=15, capture_output=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _llm_call(user: str, system: str | None = None):
     """One decision from the local model. Called directly (not through the async router) because Playwright's sync mode keeps
     an event loop alive in this thread. Two settings matter for reliability: a context window big enough for a whole page
@@ -709,6 +722,32 @@ class Agent:
         self.history.append(f"unknown action {act}")
         return True
 
+    # ---- the browser
+    def _launch(self, p):
+        """Open Chrome with this person's own profile (kept logins). If an old agent window still holds the profile, close
+        those stray windows and retry; as a last resort use a fresh profile so the task still runs."""
+        r = self.run
+        prof = PROFILE_DIR / str(r.user_id)
+        kw = dict(channel="chrome", headless=r.headless, viewport={"width": 1280, "height": 800},
+                  args=["--window-position=40,40", "--disable-blink-features=AutomationControlled"])
+        try:
+            return p.chromium.launch_persistent_context(str(prof), **kw)
+        except Exception as e:  # noqa: BLE001
+            log.warning("browser profile busy: %r", e)
+        _kill_profile_chrome("browser_profile")
+        time.sleep(1.5)
+        for lock in ("SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile"):  # left behind by a crashed window
+            try:
+                (prof / lock).unlink()
+            except OSError:
+                pass
+        try:
+            return p.chromium.launch_persistent_context(str(prof), **kw)
+        except Exception as e:  # noqa: BLE001
+            log.warning("browser profile still busy, using a fresh one: %r", e)
+        r.emit("info", "Your saved browser profile is busy, so I opened a fresh window (you may need to log in again).")
+        return p.chromium.launch_persistent_context(str(PROFILE_DIR / f"{r.user_id}-{int(time.time())}"), **kw)
+
     # ---- the loop
     def run_loop(self) -> None:
         from playwright.sync_api import sync_playwright
@@ -717,13 +756,7 @@ class Agent:
         try:
             PROFILE_DIR.mkdir(parents=True, exist_ok=True)
             with sync_playwright() as p:
-                self.ctx = p.chromium.launch_persistent_context(
-                    str(PROFILE_DIR / str(r.user_id)),
-                    channel="chrome",
-                    headless=r.headless,
-                    viewport={"width": 1280, "height": 800},
-                    args=["--window-position=40,40", "--disable-blink-features=AutomationControlled"],
-                )
+                self.ctx = self._launch(p)
                 self.ctx.add_init_script(CURSOR_JS)
                 self.page = self.ctx.pages[0] if self.ctx.pages else self.ctx.new_page()
                 r.emit("info", "Browser opened. You can watch it here and in the Chrome window.")
