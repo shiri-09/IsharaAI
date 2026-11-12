@@ -1,0 +1,501 @@
+{
+  "dataset": {
+    "samples": 685,
+    "classes": 99,
+    "train": 489,
+    "val": 98,
+    "test": 98
+  },
+  "split": "per-sentence, whole recordings held out (no recording appears in two splits)",
+  "model": {
+    "type": "Conv + Transformer encoder",
+    "d_model": 128,
+    "layers": 3,
+    "seq_len": 64,
+    "ensemble": 5
+  },
+  "best_epoch": 207,
+  "val_acc_mean": 0.5408163189888,
+  "test_acc": 0.5408163070678711,
+  "test_top3": 0.795918345451355,
+  "test_acc_single_models": [
+    0.5714285969734192,
+    0.5,
+    0.5102040767669678,
+    0.4693877696990967,
+    0.5612244606018066
+  ],
+  "per_class": {
+    "I am hungry.": {
+      "correct": 1,
+      "total": 1
+    },
+    "Nice to meet you.": {
+      "correct": 0,
+      "total": 1
+    },
+    "Are you free today": {
+      "correct": 0,
+      "total": 1
+    },
+    "Are you hiding something": {
+      "correct": 1,
+      "total": 1
+    },
+    "Bring water for me": {
+      "correct": 0,
+      "total": 1
+    },
+    "Can i help you": {
+      "correct": 0,
+      "total": 1
+    },
+    "Can you repeat that please": {
+      "correct": 0,
+      "total": 1
+    },
+    "Comb your hair": {
+      "correct": 1,
+      "total": 1
+    },
+    "Congratulations": {
+      "correct": 1,
+      "total": 1
+    },
+    "Could you please talk slower": {
+      "correct": 1,
+      "total": 1
+    },
+    "Do me a favour": {
+      "correct": 0,
+      "total": 1
+    },
+    "Do not abuse him": {
+      "correct": 0,
+      "total": 1
+    },
+    "Do not be stubborn": {
+      "correct": 1,
+      "total": 1
+    },
+    "Do not hurt me": {
+      "correct": 1,
+      "total": 1
+    },
+    "Do not make me angry": {
+      "correct": 1,
+      "total": 1
+    },
+    "Do not take it to the heart": {
+      "correct": 0,
+      "total": 1
+    },
+    "Do not worry": {
+      "correct": 0,
+      "total": 1
+    },
+    "Do you need something": {
+      "correct": 0,
+      "total": 1
+    },
+    "Go and sleep": {
+      "correct": 1,
+      "total": 1
+    },
+    "Had your food": {
+      "correct": 1,
+      "total": 1
+    },
+    "He came by train": {
+      "correct": 0,
+      "total": 1
+    },
+    "He is going into the room": {
+      "correct": 0,
+      "total": 1
+    },
+    "He is on the way": {
+      "correct": 1,
+      "total": 1
+    },
+    "He she is my friend": {
+      "correct": 1,
+      "total": 1
+    },
+    "He would be coming today": {
+      "correct": 1,
+      "total": 1
+    },
+    "Help me": {
+      "correct": 0,
+      "total": 1
+    },
+    "Hi how are you": {
+      "correct": 1,
+      "total": 1
+    },
+    "How are things": {
+      "correct": 0,
+      "total": 1
+    },
+    "How can i help you": {
+      "correct": 1,
+      "total": 1
+    },
+    "How can i trust you": {
+      "correct": 1,
+      "total": 1
+    },
+    "How dare you": {
+      "correct": 1,
+      "total": 1
+    },
+    "How old are you": {
+      "correct": 0,
+      "total": 1
+    },
+    "I am (age)": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am afraid of that": {
+      "correct": 0,
+      "total": 1
+    },
+    "I am crying": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am feeling bored": {
+      "correct": 0,
+      "total": 1
+    },
+    "I am feeling cold": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am fine. thank you sir": {
+      "correct": 0,
+      "total": 1
+    },
+    "I am in dilemma what to do": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am not really sure": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am really grateful": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am sitting in the class": {
+      "correct": 0,
+      "total": 1
+    },
+    "I am so sorry to hear that": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am suffering from fever": {
+      "correct": 1,
+      "total": 1
+    },
+    "I am tired": {
+      "correct": 0,
+      "total": 1
+    },
+    "I am very happy": {
+      "correct": 0,
+      "total": 1
+    },
+    "I can not help you there": {
+      "correct": 1,
+      "total": 1
+    },
+    "I do not agree": {
+      "correct": 1,
+      "total": 1
+    },
+    "I do not like it": {
+      "correct": 0,
+      "total": 1
+    },
+    "I do not mean it": {
+      "correct": 0,
+      "total": 1
+    },
+    "I enjoyed a lot": {
+      "correct": 1,
+      "total": 1
+    },
+    "I got hurt": {
+      "correct": 0,
+      "total": 1
+    },
+    "I like you i love you": {
+      "correct": 1,
+      "total": 1
+    },
+    "I need water": {
+      "correct": 1,
+      "total": 1
+    },
+    "I promise": {
+      "correct": 1,
+      "total": 1
+    },
+    "I really appreciate it": {
+      "correct": 1,
+      "total": 1
+    },
+    "I somehow got to know about it": {
+      "correct": 1,
+      "total": 1
+    },
+    "I was stopped by some one": {
+      "correct": 1,
+      "total": 1
+    },
+    "It does not make any difference to me": {
+      "correct": 0,
+      "total": 1
+    },
+    "It was nice chatting with you": {
+      "correct": 1,
+      "total": 1
+    },
+    "Let him take time": {
+      "correct": 1,
+      "total": 1
+    },
+    "My name is xxxxxxxx": {
+      "correct": 1,
+      "total": 1
+    },
+    "Now onwards he will never hurt you": {
+      "correct": 1,
+      "total": 1
+    },
+    "Pour some more water into the glass": {
+      "correct": 1,
+      "total": 1
+    },
+    "Prepare the bed": {
+      "correct": 1,
+      "total": 1
+    },
+    "Serve the food": {
+      "correct": 0,
+      "total": 1
+    },
+    "Shall we go outside": {
+      "correct": 1,
+      "total": 1
+    },
+    "Speak softly": {
+      "correct": 1,
+      "total": 1
+    },
+    "Take care of yourself": {
+      "correct": 0,
+      "total": 1
+    },
+    "Tell me truth": {
+      "correct": 1,
+      "total": 1
+    },
+    "Thank you so much": {
+      "correct": 1,
+      "total": 1
+    },
+    "That is so kind of you": {
+      "correct": 0,
+      "total": 1
+    },
+    "This place is beautiful": {
+      "correct": 0,
+      "total": 1
+    },
+    "Try to understand": {
+      "correct": 0,
+      "total": 1
+    },
+    "Turn on light turn off light": {
+      "correct": 0,
+      "total": 1
+    },
+    "We are all with you": {
+      "correct": 0,
+      "total": 1
+    },
+    "Wear the shirt": {
+      "correct": 1,
+      "total": 1
+    },
+    "What are you doing": {
+      "correct": 0,
+      "total": 1
+    },
+    "What did you tell him": {
+      "correct": 0,
+      "total": 1
+    },
+    "What do you do": {
+      "correct": 0,
+      "total": 1
+    },
+    "What do you think": {
+      "correct": 1,
+      "total": 1
+    },
+    "What do you want to become": {
+      "correct": 0,
+      "total": 1
+    },
+    "What happened": {
+      "correct": 0,
+      "total": 1
+    },
+    "What is your phone number": {
+      "correct": 0,
+      "total": 1
+    },
+    "What you want": {
+      "correct": 0,
+      "total": 1
+    },
+    "When will the train leave": {
+      "correct": 1,
+      "total": 1
+    },
+    "Where are you from": {
+      "correct": 0,
+      "total": 1
+    },
+    "Which collegeschool are you from": {
+      "correct": 0,
+      "total": 1
+    },
+    "Who are you": {
+      "correct": 1,
+      "total": 1
+    },
+    "Why are you angry": {
+      "correct": 0,
+      "total": 1
+    },
+    "Why are you crying": {
+      "correct": 1,
+      "total": 1
+    },
+    "Why are you disappointed": {
+      "correct": 1,
+      "total": 1
+    },
+    "You are bad": {
+      "correct": 0,
+      "total": 1
+    },
+    "You are good": {
+      "correct": 1,
+      "total": 1
+    },
+    "You are welcome": {
+      "correct": 1,
+      "total": 1
+    },
+    "You can do it": {
+      "correct": 0,
+      "total": 1
+    },
+    "You do anything, i do not care": {
+      "correct": 0,
+      "total": 1
+    },
+    "You need a medicine, take this one": {
+      "correct": 1,
+      "total": 1
+    }
+  },
+  "top_confusions": [
+    {
+      "true": "Nice to meet you.",
+      "pred": "I am really grateful",
+      "count": 1
+    },
+    {
+      "true": "Are you free today",
+      "pred": "He she is my friend",
+      "count": 1
+    },
+    {
+      "true": "Bring water for me",
+      "pred": "I am hungry.",
+      "count": 1
+    },
+    {
+      "true": "Can i help you",
+      "pred": "I am very happy",
+      "count": 1
+    },
+    {
+      "true": "Can you repeat that please",
+      "pred": "Shall we go outside",
+      "count": 1
+    },
+    {
+      "true": "Do me a favour",
+      "pred": "Can i help you",
+      "count": 1
+    },
+    {
+      "true": "Do not abuse him",
+      "pred": "Do not take it to the heart",
+      "count": 1
+    },
+    {
+      "true": "Do not take it to the heart",
+      "pred": "Do not make me angry",
+      "count": 1
+    },
+    {
+      "true": "Do not worry",
+      "pred": "How can i trust you",
+      "count": 1
+    },
+    {
+      "true": "Do you need something",
+      "pred": "Are you hiding something",
+      "count": 1
+    },
+    {
+      "true": "He came by train",
+      "pred": "You are welcome",
+      "count": 1
+    },
+    {
+      "true": "He is going into the room",
+      "pred": "I am in dilemma what to do",
+      "count": 1
+    },
+    {
+      "true": "Help me",
+      "pred": "Can i help you",
+      "count": 1
+    },
+    {
+      "true": "How are things",
+      "pred": "What are you doing",
+      "count": 1
+    },
+    {
+      "true": "How old are you",
+      "pred": "What is your phone number",
+      "count": 1
+    }
+  ],
+  "deployed_model": "retrained on all data after evaluation (test numbers above are from the held-out run)",
+  "train_seconds": 1729.2
+}

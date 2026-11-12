@@ -170,6 +170,7 @@ def main() -> None:
     ap.add_argument("--min-samples", type=int, default=2, help="skip sentences with fewer recordings")
     ap.add_argument("--final", action="store_true", help="after evaluation, retrain on all data for deployment")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--save-probs", default="", help="write held-out test probabilities (npz) here, for blending experiments")
     ap.add_argument("--ensemble", type=int, default=1, help="number of models (different seeds) averaged together")
     args = ap.parse_args()
 
@@ -228,6 +229,10 @@ def main() -> None:
     if test is not None:
         singles = [evaluate(m, *test, device)[0] for m in models]
         acc, top3, pred = evaluate_ensemble(models, *test, device)
+        if args.save_probs:
+            with torch.no_grad():
+                pr = sum(torch.softmax(m.eval()(test[0].to(device)).float(), 1).cpu() for m in models) / len(models)
+            np.savez(args.save_probs, probs=pr.numpy(), y=test[1].numpy(), classes=np.array(class_ids))
         per_class = defaultdict(lambda: [0, 0])
         confusions = Counter()
         for y, p in zip(test[1].tolist(), pred.tolist()):

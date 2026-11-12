@@ -41,16 +41,16 @@ type Scene = { eyebrow: string; title: string; body: string; narration: string; 
 const SCENES: Scene[] = [
   {
     eyebrow: "Welcome",
-    title: "Ishara means sign.",
-    body: "A conversation partner for people who sign, and for people who cannot use a keyboard.",
-    narration: "Welcome to Ishara AI. Ishara means sign.",
+    title: "Welcome to Ishara AI.",
+    body: "An accessibility agent for two-way communication in Indian Sign Language and AAC.",
+    narration: "Welcome to Ishara AI, an accessibility agent for two-way communication.",
     visual: () => <Hand size={240} glow />,
   },
   {
-    eyebrow: "Sign",
-    title: "Sign a whole sentence.",
-    body: "Raise your hands to start. Lower them to finish. Ishara reads the motion, not single letters.",
-    narration: "Sign a whole sentence. Raise your hands to start, and lower them to finish.",
+    eyebrow: "Recognition",
+    title: "Continuous ISL recognition.",
+    body: "Raise your hands to start and lower them to finish. Ishara AI reads the whole sentence, not single letters.",
+    narration: "Ishara AI recognises continuous Indian Sign Language, one whole sentence at a time.",
     visual: () => (
       <div className="flex items-end gap-6">
         <Hand size={150} />
@@ -62,10 +62,10 @@ const SCENES: Scene[] = [
     ),
   },
   {
-    eyebrow: "Converse",
-    title: "Ishara replies, and remembers.",
-    body: "A multimodal AI keeps the conversation going and uses context when a sign is unclear.",
-    narration: "Ishara replies, remembers the conversation, and uses context when a sign is unclear.",
+    eyebrow: "Conversation",
+    title: "A context-aware AI partner.",
+    body: "A multimodal assistant remembers the conversation and uses context when a sign is unclear.",
+    narration: "A context-aware assistant remembers the conversation and uses it when a sign is unclear.",
     visual: () => (
       <div className="w-[420px] space-y-3 text-left">
         <p className="intro-rise ml-auto w-fit rounded-2xl bg-gradient-to-b from-zinc-200 to-zinc-400 px-4 py-2 text-zinc-950">Bring water for me</p>
@@ -76,8 +76,8 @@ const SCENES: Scene[] = [
     ),
   },
   {
-    eyebrow: "Speak",
-    title: "Heard in your language.",
+    eyebrow: "Languages",
+    title: "Text and speech in your language.",
     body: "Every reply is shown and spoken in Hindi, Kannada, Tamil or Telugu.",
     narration: "Every reply is shown and spoken in Hindi, Kannada, Tamil or Telugu.",
     visual: () => (
@@ -93,7 +93,7 @@ const SCENES: Scene[] = [
   {
     eyebrow: "Your way",
     title: "Hands, or eyes and face.",
-    body: "Next, choose how you want to talk. You can choose with your eyes alone.",
+    body: "Next, choose how you want to communicate. You can choose with your eyes alone.",
     narration: "Next, choose how you want to talk. You can choose with your eyes alone.",
     visual: () => (
       <div className="flex gap-4">

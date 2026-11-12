@@ -38,9 +38,18 @@ function Onboarding() {
   return <Outlet />;
 }
 
+/** Keeps each user inside their own interface: ISL screens for ISL users, the AAC board for AAC users. */
+function ModeGate({ mode }: { mode: "isl" | "aac" }) {
+  const { prefs } = usePrefs();
+  if (!prefs) return <Loading />;
+  const current = prefs.mode === "aac" ? "aac" : "isl";
+  if (current !== mode) return <Navigate to={current === "aac" ? "/aac" : "/studio"} replace />;
+  return <Outlet />;
+}
+
 function Home() {
   const { prefs } = usePrefs();
-  return prefs?.mode === "aac" ? <Navigate to="/aac" replace /> : <Studio />;
+  return <Navigate to={prefs?.mode === "aac" ? "/aac" : "/studio"} replace />;
 }
 
 createRoot(document.getElementById("root")!).render(
@@ -54,9 +63,13 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/setup" element={<Setup />} />
             <Route element={<Shell />}>
               <Route path="/" element={<Home />} />
-              <Route path="/studio" element={<Studio />} />
-              <Route path="/aac" element={<Aac />} />
-              <Route path="/collect" element={<Collect />} />
+              <Route element={<ModeGate mode="isl" />}>
+                <Route path="/studio" element={<Studio />} />
+                <Route path="/collect" element={<Collect />} />
+              </Route>
+              <Route element={<ModeGate mode="aac" />}>
+                <Route path="/aac" element={<Aac />} />
+              </Route>
               <Route path="/history" element={<History />} />
               <Route path="/history/:id" element={<History />} />
             </Route>
