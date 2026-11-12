@@ -10,121 +10,37 @@
     "mirror": 0.0,
     "norm": "clip",
     "k": 5,
-    "cv_ensemble": 1,
+    "cv_ensemble": 3,
     "ensemble": 5,
-    "min_samples": 2,
+    "min_samples": 5,
     "no_cv": false,
     "seed": 0
   },
-  "recordings": 685,
-  "sentences": 99,
+  "recordings": 139,
+  "sentences": 20,
   "method": "5-fold cross-validation, stratified by sentence: every recording is tested once by a model that never saw it",
-  "top1": 0.5430656934306569,
-  "top3": 0.727007299270073,
-  "n": 685,
+  "top1": 0.8633093525179856,
+  "top3": 0.9568345323741008,
+  "n": 139,
   "per_class": {
-    "I am hungry.": {
-      "correct": 4,
-      "total": 8
-    },
-    "Nice to meet you.": {
-      "correct": 2,
-      "total": 7
-    },
-    "Are you free today": {
-      "correct": 3,
-      "total": 7
-    },
-    "Are you hiding something": {
-      "correct": 1,
-      "total": 7
-    },
-    "Bring water for me": {
-      "correct": 3,
-      "total": 7
-    },
-    "Can i help you": {
-      "correct": 1,
-      "total": 8
-    },
-    "Can you repeat that please": {
-      "correct": 3,
-      "total": 7
-    },
-    "Comb your hair": {
-      "correct": 5,
-      "total": 7
-    },
     "Congratulations": {
       "correct": 6,
       "total": 7
     },
     "Could you please talk slower": {
-      "correct": 4,
+      "correct": 6,
       "total": 7
-    },
-    "Do me a favour": {
-      "correct": 3,
-      "total": 7
-    },
-    "Do not abuse him": {
-      "correct": 5,
-      "total": 6
-    },
-    "Do not be stubborn": {
-      "correct": 5,
-      "total": 6
     },
     "Do not hurt me": {
-      "correct": 5,
+      "correct": 6,
       "total": 7
-    },
-    "Do not make me angry": {
-      "correct": 5,
-      "total": 7
-    },
-    "Do not take it to the heart": {
-      "correct": 5,
-      "total": 7
-    },
-    "Do not worry": {
-      "correct": 0,
-      "total": 7
-    },
-    "Do you need something": {
-      "correct": 3,
-      "total": 7
-    },
-    "Go and sleep": {
-      "correct": 5,
-      "total": 8
     },
     "Had your food": {
       "correct": 5,
       "total": 7
     },
-    "He came by train": {
-      "correct": 3,
-      "total": 7
-    },
-    "He is going into the room": {
-      "correct": 3,
-      "total": 7
-    },
-    "He is on the way": {
-      "correct": 3,
-      "total": 6
-    },
     "He she is my friend": {
-      "correct": 6,
-      "total": 7
-    },
-    "He would be coming today": {
       "correct": 7,
-      "total": 7
-    },
-    "Help me": {
-      "correct": 3,
       "total": 7
     },
     "Hi how are you": {
@@ -135,60 +51,12 @@
       "correct": 5,
       "total": 6
     },
-    "How can i help you": {
-      "correct": 4,
-      "total": 7
-    },
-    "How can i trust you": {
-      "correct": 1,
-      "total": 7
-    },
-    "How dare you": {
-      "correct": 5,
-      "total": 7
-    },
-    "How old are you": {
-      "correct": 4,
-      "total": 7
-    },
-    "I am (age)": {
-      "correct": 4,
-      "total": 6
-    },
     "I am afraid of that": {
       "correct": 5,
       "total": 7
     },
-    "I am crying": {
-      "correct": 4,
-      "total": 7
-    },
-    "I am feeling bored": {
-      "correct": 1,
-      "total": 7
-    },
-    "I am feeling cold": {
-      "correct": 3,
-      "total": 7
-    },
     "I am fine. thank you sir": {
       "correct": 6,
-      "total": 7
-    },
-    "I am in dilemma what to do": {
-      "correct": 5,
-      "total": 7
-    },
-    "I am not really sure": {
-      "correct": 2,
-      "total": 7
-    },
-    "I am really grateful": {
-      "correct": 2,
-      "total": 7
-    },
-    "I am sitting in the class": {
-      "correct": 5,
       "total": 7
     },
     "I am so sorry to hear that": {
@@ -199,327 +67,138 @@
       "correct": 6,
       "total": 7
     },
-    "I am tired": {
-      "correct": 2,
-      "total": 7
-    },
     "I am very happy": {
-      "correct": 4,
+      "correct": 5,
       "total": 6
     },
-    "I can not help you there": {
-      "correct": 2,
-      "total": 7
-    },
-    "I do not agree": {
-      "correct": 3,
-      "total": 7
-    },
-    "I do not like it": {
-      "correct": 2,
-      "total": 7
-    },
-    "I do not mean it": {
-      "correct": 2,
-      "total": 7
-    },
-    "I enjoyed a lot": {
-      "correct": 4,
-      "total": 8
-    },
-    "I got hurt": {
-      "correct": 3,
-      "total": 7
-    },
     "I like you i love you": {
-      "correct": 7,
+      "correct": 8,
       "total": 8
     },
     "I need water": {
-      "correct": 5,
-      "total": 7
-    },
-    "I promise": {
-      "correct": 3,
+      "correct": 7,
       "total": 7
     },
     "I really appreciate it": {
       "correct": 6,
       "total": 7
     },
-    "I somehow got to know about it": {
-      "correct": 4,
-      "total": 7
-    },
-    "I was stopped by some one": {
-      "correct": 4,
-      "total": 7
-    },
-    "It does not make any difference to me": {
-      "correct": 5,
-      "total": 7
-    },
     "It was nice chatting with you": {
-      "correct": 6,
-      "total": 7
-    },
-    "Let him take time": {
-      "correct": 6,
-      "total": 7
-    },
-    "My name is xxxxxxxx": {
-      "correct": 5,
-      "total": 7
-    },
-    "Now onwards he will never hurt you": {
-      "correct": 3,
-      "total": 6
-    },
-    "Pour some more water into the glass": {
-      "correct": 6,
-      "total": 7
-    },
-    "Prepare the bed": {
-      "correct": 5,
-      "total": 7
-    },
-    "Serve the food": {
-      "correct": 4,
-      "total": 9
-    },
-    "Shall we go outside": {
-      "correct": 4,
-      "total": 7
-    },
-    "Speak softly": {
-      "correct": 4,
-      "total": 8
-    },
-    "Take care of yourself": {
-      "correct": 6,
-      "total": 7
-    },
-    "Tell me truth": {
-      "correct": 3,
-      "total": 6
-    },
-    "Thank you so much": {
-      "correct": 4,
-      "total": 7
-    },
-    "That is so kind of you": {
-      "correct": 3,
-      "total": 7
-    },
-    "This place is beautiful": {
-      "correct": 3,
-      "total": 7
-    },
-    "Try to understand": {
-      "correct": 5,
-      "total": 7
-    },
-    "Turn on light turn off light": {
       "correct": 7,
       "total": 7
     },
-    "We are all with you": {
-      "correct": 2,
+    "Take care of yourself": {
+      "correct": 5,
       "total": 7
-    },
-    "Wear the shirt": {
-      "correct": 4,
-      "total": 7
-    },
-    "What are you doing": {
-      "correct": 1,
-      "total": 7
-    },
-    "What did you tell him": {
-      "correct": 3,
-      "total": 7
-    },
-    "What do you do": {
-      "correct": 0,
-      "total": 6
-    },
-    "What do you think": {
-      "correct": 1,
-      "total": 7
-    },
-    "What do you want to become": {
-      "correct": 2,
-      "total": 7
-    },
-    "What happened": {
-      "correct": 1,
-      "total": 6
-    },
-    "What have you planned for your career": {
-      "correct": 0,
-      "total": 3
     },
     "What is your phone number": {
-      "correct": 5,
+      "correct": 7,
       "total": 7
-    },
-    "What you want": {
-      "correct": 1,
-      "total": 7
-    },
-    "When will the train leave": {
-      "correct": 5,
-      "total": 7
-    },
-    "Where are you from": {
-      "correct": 3,
-      "total": 6
-    },
-    "Which collegeschool are you from": {
-      "correct": 3,
-      "total": 7
-    },
-    "Who are you": {
-      "correct": 3,
-      "total": 6
     },
     "Why are you angry": {
-      "correct": 5,
-      "total": 7
-    },
-    "Why are you crying": {
-      "correct": 4,
-      "total": 7
-    },
-    "Why are you disappointed": {
-      "correct": 2,
-      "total": 7
-    },
-    "You are bad": {
-      "correct": 3,
-      "total": 8
-    },
-    "You are good": {
       "correct": 6,
       "total": 7
     },
-    "You are welcome": {
-      "correct": 4,
-      "total": 7
-    },
-    "You can do it": {
-      "correct": 3,
-      "total": 7
-    },
-    "You do anything, i do not care": {
+    "You are good": {
       "correct": 5,
-      "total": 6
-    },
-    "You need a medicine, take this one": {
-      "correct": 4,
       "total": 7
     }
   },
   "top_confusions": [
     {
-      "true": "I am feeling bored",
-      "pred": "I am tired",
-      "count": 4
+      "true": "Congratulations",
+      "pred": "Had your food",
+      "count": 1
     },
     {
-      "true": "Are you hiding something",
-      "pred": "Do you need something",
-      "count": 3
-    },
-    {
-      "true": "Can i help you",
-      "pred": "Help me",
-      "count": 3
-    },
-    {
-      "true": "Do not worry",
-      "pred": "Do not hurt me",
-      "count": 3
-    },
-    {
-      "true": "How can i trust you",
-      "pred": "Why are you disappointed",
-      "count": 3
-    },
-    {
-      "true": "I am not really sure",
-      "pred": "It does not make any difference to me",
-      "count": 3
-    },
-    {
-      "true": "I am really grateful",
-      "pred": "Nice to meet you.",
-      "count": 3
-    },
-    {
-      "true": "I am tired",
-      "pred": "I am feeling bored",
-      "count": 3
-    },
-    {
-      "true": "That is so kind of you",
-      "pred": "Take care of yourself",
-      "count": 3
-    },
-    {
-      "true": "Where are you from",
-      "pred": "What you want",
-      "count": 3
-    },
-    {
-      "true": "I am hungry.",
-      "pred": "I am feeling cold",
-      "count": 2
-    },
-    {
-      "true": "Nice to meet you.",
-      "pred": "I am really grateful",
-      "count": 2
-    },
-    {
-      "true": "Are you free today",
-      "pred": "I do not agree",
-      "count": 2
-    },
-    {
-      "true": "Bring water for me",
-      "pred": "I need water",
-      "count": 2
-    },
-    {
-      "true": "Can i help you",
-      "pred": "How can i help you",
-      "count": 2
-    },
-    {
-      "true": "Do me a favour",
-      "pred": "He she is my friend",
-      "count": 2
+      "true": "Could you please talk slower",
+      "pred": "How are things",
+      "count": 1
     },
     {
       "true": "Do not hurt me",
-      "pred": "Do not worry",
-      "count": 2
+      "pred": "Take care of yourself",
+      "count": 1
     },
     {
-      "true": "Do you need something",
-      "pred": "Serve the food",
-      "count": 2
+      "true": "Had your food",
+      "pred": "I am afraid of that",
+      "count": 1
     },
     {
-      "true": "He is going into the room",
-      "pred": "I am sitting in the class",
-      "count": 2
+      "true": "Had your food",
+      "pred": "Congratulations",
+      "count": 1
     },
     {
-      "true": "Help me",
-      "pred": "Can i help you",
-      "count": 2
+      "true": "How are things",
+      "pred": "I am very happy",
+      "count": 1
+    },
+    {
+      "true": "I am afraid of that",
+      "pred": "Had your food",
+      "count": 1
+    },
+    {
+      "true": "I am afraid of that",
+      "pred": "I am suffering from fever",
+      "count": 1
+    },
+    {
+      "true": "I am fine. thank you sir",
+      "pred": "I am so sorry to hear that",
+      "count": 1
+    },
+    {
+      "true": "I am so sorry to hear that",
+      "pred": "Take care of yourself",
+      "count": 1
+    },
+    {
+      "true": "I am so sorry to hear that",
+      "pred": "Had your food",
+      "count": 1
+    },
+    {
+      "true": "I am suffering from fever",
+      "pred": "What is your phone number",
+      "count": 1
+    },
+    {
+      "true": "I am very happy",
+      "pred": "How are things",
+      "count": 1
+    },
+    {
+      "true": "I really appreciate it",
+      "pred": "Take care of yourself",
+      "count": 1
+    },
+    {
+      "true": "Take care of yourself",
+      "pred": "I am fine. thank you sir",
+      "count": 1
+    },
+    {
+      "true": "Take care of yourself",
+      "pred": "I am so sorry to hear that",
+      "count": 1
+    },
+    {
+      "true": "Why are you angry",
+      "pred": "Take care of yourself",
+      "count": 1
+    },
+    {
+      "true": "You are good",
+      "pred": "I really appreciate it",
+      "count": 1
+    },
+    {
+      "true": "You are good",
+      "pred": "Do not hurt me",
+      "count": 1
     }
   ]
 }

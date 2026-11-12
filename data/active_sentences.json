@@ -1,0 +1,25 @@
+{
+  "note": "The recogniser is trained on these sentences only. Chosen for everyday use among the ones that cross-validated best.",
+  "ids": [
+    "c025",
+    "c036",
+    "c026",
+    "c007",
+    "c067",
+    "c054",
+    "c058",
+    "c093",
+    "c042",
+    "c052",
+    "c018",
+    "c041",
+    "c044",
+    "c008",
+    "c083",
+    "c089",
+    "c032",
+    "c051",
+    "c022",
+    "c012"
+  ]
+}

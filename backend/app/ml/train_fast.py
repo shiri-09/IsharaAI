@@ -20,7 +20,7 @@ from torch import nn
 
 from ..config import settings
 from . import features as F
-from .dataset import load_all, load_sentences
+from .dataset import active_ids, load_all, load_sentences
 from .gpu_aug import GpuAugment, prep
 from .model import SignTransformer
 
@@ -88,7 +88,8 @@ def main() -> None:
     counts = Counter(labels)
     sentences = load_sentences()
     text_of = {s["id"]: s["text"] for s in sentences}
-    classes = [s["id"] for s in sentences if counts.get(s["id"], 0) >= args.min_samples]
+    only = active_ids()
+    classes = [s["id"] for s in sentences if counts.get(s["id"], 0) >= args.min_samples and (only is None or s["id"] in only)]
     if len(classes) < 2:
         raise SystemExit("Need recorded samples for at least 2 sentences. Use the Collect page first.")
     cidx = {c: i for i, c in enumerate(classes)}

@@ -1,13 +1,18 @@
 """Agentic orchestration API. See services/orchestrator.py for the planner, tools and safety rules.
 
-Lifecycle of a run:
-  POST /api/agent/runs            goal -> plan -> read-only steps run -> needs_info | blocked | awaiting_consent | answered
-  POST /api/agent/runs/{id}/reply more details from the user -> re-plan with goal + reply
-  POST /api/agent/runs/{id}/confirm   user consent -> execute effects -> verify by reading back -> done
+Runs happen in the background and write every step to the database as it goes, so the browser can poll and show
+the orchestration live: plan, each check as it runs, consent, each action as it executes, then verification.
+
+  POST /api/agent/runs            goal -> (background) plan -> read-only steps -> needs_info | blocked | awaiting_consent | answered
+  POST /api/agent/runs/{id}/reply more details from the user -> re-plan
+  POST /api/agent/runs/{id}/confirm   user consent -> (background) execute effects one by one -> verify -> done
   POST /api/agent/runs/{id}/cancel    nothing is executed
+  GET  /api/agent/runs/{id}       current state (poll while status is planning / executing)
 """
 
+import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -15,12 +20,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
-from ..db import get_db
+from ..db import SessionLocal, get_db
 from ..models import AgentAction, AgentRun, Conversation, Message, User
 from ..services import orchestrator as orch
 from ..services.translate import translate_all
 
+log = logging.getLogger("ishara.agent")
 router = APIRouter(prefix="/api/agent", tags=["agentic orchestration"])
+PAUSE = 0.7  # seconds between visible steps, so the user can follow the orchestration
+_tasks: set[asyncio.Task] = set()
 
 
 class RunIn(BaseModel):
@@ -54,10 +62,10 @@ def _out(r: AgentRun) -> dict:
     }
 
 
-def _taken(db: Session, user: User) -> set[tuple[str, str]]:
+def _taken(db: Session, user_id: int) -> set[tuple[str, str]]:
     """Times already booked by this user (so the agent never double-books)."""
     out = set()
-    for a in db.scalars(select(AgentAction).where(AgentAction.user_id == user.id, AgentAction.kind == "book_appointment",
+    for a in db.scalars(select(AgentAction).where(AgentAction.user_id == user_id, AgentAction.kind == "book_appointment",
                                                   AgentAction.status == "done")).all():
         f = json.loads(a.payload or "{}").get("fields", {})
         if f.get("date") and f.get("time"):
@@ -71,42 +79,66 @@ def _say(db: Session, run: AgentRun, text: str, role: str = "assistant", transla
                    meta=json.dumps({"run_id": run.id})))
 
 
-async def _plan_and_check(db: Session, user: User, run: AgentRun, goal: str, plan_steps: list | None = None) -> None:
+def _flush(db: Session, run: AgentRun, steps: list, trace: list, status: str | None = None) -> None:
+    """Write progress so a polling browser sees it now."""
+    run.steps, run.trace = json.dumps(steps), json.dumps(trace)
+    if status:
+        run.status = status
+    db.commit()
+
+
+def _ev(trace: list, node: str, detail: str) -> None:
+    trace.append({"t": orch._now_iso(), "node": node, "detail": detail})
+
+
+def _spawn(coro) -> None:
+    t = asyncio.create_task(coro)
+    _tasks.add(t)
+    t.add_done_callback(_tasks.discard)
+
+
+async def _plan_and_check(db: Session, user_id: int, run: AgentRun, goal: str, plan_steps: list | None = None) -> None:
     trace = json.loads(run.trace or "[]")
+    steps: list = []
     if plan_steps is None:
-        trace.append({"t": orch._now_iso(), "node": "goal", "detail": goal})
+        _ev(trace, "goal", goal)
+        _flush(db, run, steps, trace)
         plan = await orch.make_plan(goal, trace)
         run.provider = plan["provider"]
     else:
         plan = {"steps": plan_steps, "ask": ""}
-        trace.append({"t": orch._now_iso(), "node": "replan", "detail": "Same plan with the updated details"})
+        _ev(trace, "replan", "Same plan with the updated details")
     steps = [{"tool": s["tool"], "args": s["args"], "why": s.get("why", ""), "status": "pending", "result": "",
               "needs_consent": s["tool"] in orch.EFFECTS, "description": orch.describe_effect(s["tool"], s["args"])}
              for s in plan["steps"]]
+    _flush(db, run, steps, trace)  # the plan appears on screen
+    await asyncio.sleep(PAUSE)
     missing = {}
     for s in steps:
         m = orch._missing(s["tool"], s["args"])
         if m:
             missing[s["tool"]] = m
     if not steps or missing:
-        run.status = "needs_info"
         if missing:
             effect = next((t for t in missing if t in orch.EFFECTS), next(iter(missing)))
-            order = ["to", "text", "query", "date", "time"]
+            order = ["to", "text", "query", "date", "time", "item"]
             fields = sorted({f for fs in missing.values() for f in fs}, key=lambda f: order.index(f) if f in order else 9)
-            nice = {"date": "which day", "time": "what time", "to": "who it is for", "text": "what it should say", "query": "your question"}
+            nice = {"date": "which day", "time": "what time", "to": "who it is for", "text": "what it should say", "query": "your question", "item": "what you want"}
             what = {"book_appointment": "book the meeting", "check_slot": "book the meeting", "set_reminder": "set the reminder",
                     "request_interpreter": "request the interpreter", "save_message": "prepare the message", "order_meal": "place the order"}.get(effect, "do this")
             run.question = f"To {what}, I need to know {' and '.join(nice.get(f, f) for f in fields)}."
         else:
             run.question = orch.CANNOT if not plan["steps"] else (plan["ask"] or orch.CANNOT)
-        trace.append({"t": orch._now_iso(), "node": "ask", "detail": run.question})
-        run.steps, run.trace = json.dumps(steps), json.dumps(trace)
+        _ev(trace, "ask", run.question)
+        _flush(db, run, steps, trace, "needs_info")
         return
-    taken = _taken(db, user)
+    taken = _taken(db, user_id)
     blocked = False
     for s in steps:
         if s["tool"] in orch.READ_ONLY:
+            s["status"] = "running"
+            _flush(db, run, steps, trace)
+            await asyncio.sleep(PAUSE)
             res = orch.run_read_only(s["tool"], s["args"], taken)
             if s["tool"] == "translate":
                 res = {"ok": True, "result": json.dumps(await translate_all(s["args"]["text"], s["args"].get("languages") or ["hi"]), ensure_ascii=False)}
@@ -114,9 +146,10 @@ async def _plan_and_check(db: Session, user: User, run: AgentRun, goal: str, pla
             s["result"] = res["result"]
             if res.get("data"):
                 s["data"] = res["data"]
-            trace.append({"t": orch._now_iso(), "node": f"tool:{s['tool']}", "detail": ("OK: " if res["ok"] else "FAILED: ") + res["result"][:200]})
+            _ev(trace, f"tool:{s['tool']}", ("OK: " if res["ok"] else "FAILED: ") + res["result"][:200])
             if not res["ok"] and s["tool"] == "check_slot":
                 blocked = True
+            _flush(db, run, steps, trace)
         elif blocked:
             s["status"] = "skipped"
             s["result"] = "Not done, because a check before it failed."
@@ -124,19 +157,103 @@ async def _plan_and_check(db: Session, user: User, run: AgentRun, goal: str, pla
             s["status"] = "needs_consent"
     effects = [s for s in steps if s["status"] == "needs_consent"]
     if blocked:
-        run.status = "blocked"
         fail = next(s for s in steps if s["status"] == "failed")
         run.question = fail["result"] + " Tell me another time, or say yes to use the suggested one." if fail.get("data", {}).get("suggest") else fail["result"]
-        trace.append({"t": orch._now_iso(), "node": "guard", "detail": "Blocked: nothing will be executed"})
+        _ev(trace, "guard", "Blocked: nothing will be executed")
+        _flush(db, run, steps, trace, "blocked")
     elif effects:
-        run.status = "awaiting_consent"
         run.question = "Shall I do this? " + "; ".join(s["description"] for s in effects) + "."
-        trace.append({"t": orch._now_iso(), "node": "consent", "detail": "Waiting for the user's confirmation"})
+        _ev(trace, "consent", "Waiting for the user's confirmation")
+        _flush(db, run, steps, trace, "awaiting_consent")
     else:
-        run.status = "answered"
         run.summary = " ".join(s["result"] for s in steps if s["status"] == "done")[:1500] or "I could not find an answer."
-        trace.append({"t": orch._now_iso(), "node": "answer", "detail": "Answered from read-only steps"})
-    run.steps, run.trace = json.dumps(steps), json.dumps(trace)
+        _ev(trace, "answer", "Answered from read-only steps")
+        _flush(db, run, steps, trace, "answered")
+
+
+async def _job_plan(run_id: int, plan_steps: list | None = None) -> None:
+    db = SessionLocal()
+    try:
+        run = db.get(AgentRun, run_id)
+        await _plan_and_check(db, run.user_id, run, run.goal, plan_steps)
+        _say(db, run, run.summary if run.status == "answered" else run.question)
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        log.exception("agent plan failed")
+        run = db.get(AgentRun, run_id)
+        if run:
+            run.status, run.summary = "failed", f"Something went wrong while planning: {e}"
+            db.commit()
+    finally:
+        db.close()
+
+
+async def _job_execute(run_id: int, languages: list[str]) -> None:
+    db = SessionLocal()
+    try:
+        run = db.get(AgentRun, run_id)
+        steps = json.loads(run.steps or "[]")
+        trace = json.loads(run.trace or "[]")
+        _ev(trace, "consent", "User confirmed")
+        # re-check right before acting: the slot may have been taken since planning
+        taken = _taken(db, run.user_id)
+        for s in steps:
+            if s["tool"] == "check_slot":
+                res = orch.run_read_only("check_slot", s["args"], taken)
+                if not res["ok"]:
+                    run.question = res["result"]
+                    s["status"], s["result"] = "failed", res["result"]
+                    _ev(trace, "guard", "Re-check failed: " + res["result"])
+                    _say(db, run, res["result"])
+                    _flush(db, run, steps, trace, "blocked")
+                    return
+        _ev(trace, "execute", "Running the confirmed actions")
+        done_lines: list[str] = []
+        for s in steps:
+            if s["status"] != "needs_consent":
+                continue
+            s["status"] = "running"
+            _flush(db, run, steps, trace)
+            await asyncio.sleep(PAUSE)
+            a = AgentAction(user_id=run.user_id, conversation_id=run.conversation_id, kind=s["tool"],
+                            payload=json.dumps({"fields": s["args"], "run_id": run.id}), status="done", result=s["description"])
+            db.add(a)
+            db.flush()
+            ref = orch.reference(s["tool"], a.id)
+            links = orch.links_for(s["tool"], s["args"], ref)
+            a.result = f"{s['description']}. Reference {ref}."
+            a.payload = json.dumps({"fields": s["args"], "run_id": run.id, "links": {k: v for k, v in links.items() if k != "ics"}})
+            db.commit()
+            # verify: read it back from storage before reporting success
+            check = db.get(AgentAction, a.id)
+            ok = check is not None and check.status == "done" and json.loads(check.payload).get("fields") == s["args"]
+            s["status"] = "done" if ok else "failed"
+            s["reference"] = ref if ok else None
+            s["verified"] = ok
+            s["links"] = links if ok else {}
+            s["result"] = f"Done and verified. Reference {ref}." if ok else "Could not verify this step."
+            _ev(trace, f"execute:{s['tool']}", s["result"])
+            if ok and s["tool"] == "order_meal":
+                done_lines.append(f"Recorded your order for {s['args'].get('item', 'a meal')}. Open Swiggy below to pay and place it for real (reference {ref})")
+            elif ok:
+                line = (s["description"].replace("Book a", "Booked a").replace("Remind you", "Reminder set")
+                        .replace("Request an", "Requested an").replace("Save a", "Saved a").replace("Order ", "Recorded an order for "))
+                done_lines.append(f"{line} (reference {ref})")
+            _flush(db, run, steps, trace)
+        ok_all = all(s["status"] in ("done", "skipped") for s in steps)
+        run.summary = ("Done. " + ". ".join(done_lines) + ".") if ok_all else "Some steps could not be completed."
+        _ev(trace, "verify", "All effects verified in storage" if ok_all else "Verification failed")
+        tr = await translate_all(run.summary, [lg for lg in languages if lg != "en"]) if languages else {}
+        _say(db, run, run.summary, translations=tr)
+        _flush(db, run, steps, trace, "done" if ok_all else "failed")
+    except Exception as e:  # noqa: BLE001
+        log.exception("agent execute failed")
+        run = db.get(AgentRun, run_id)
+        if run:
+            run.status, run.summary = "failed", f"Something went wrong: {e}"
+            db.commit()
+    finally:
+        db.close()
 
 
 def _own(db: Session, user: User, rid: int) -> AgentRun:
@@ -151,13 +268,12 @@ async def start(body: RunIn, user: User = Depends(current_user), db: Session = D
     conv = Conversation(user_id=user.id, title=body.goal[:80], context="campus", mode="agent")
     db.add(conv)
     db.flush()
-    run = AgentRun(user_id=user.id, conversation_id=conv.id, goal=body.goal, source=body.source)
+    run = AgentRun(user_id=user.id, conversation_id=conv.id, goal=body.goal, source=body.source, status="planning")
     db.add(run)
     db.flush()
     _say(db, run, body.goal, role="user")
-    await _plan_and_check(db, user, run, body.goal)
-    _say(db, run, run.summary if run.status == "answered" else run.question)
     db.commit()
+    _spawn(_job_plan(run.id))
     return _out(run)
 
 
@@ -172,21 +288,20 @@ async def reply(rid: int, body: ReplyIn, user: User = Depends(current_user), db:
     yes = orch.re.fullmatch(r"\s*(yes|ok|okay|sure|yes please|use it|fine|that works)\W*", body.text, orch.re.I)
     new_when = orch._date_time(body.text)
     timed = any(st["tool"] in ("check_slot", "book_appointment", "set_reminder", "request_interpreter") for st in steps)
-    use_plan = timed and bool((yes and sug) or new_when)
-    run.status, run.question = "planning", ""
-    if use_plan:
+    plan_steps = None
+    if timed and bool((yes and sug) or new_when):
         # same plan, new date/time: the suggested free slot ("yes") or the one the user just gave
         when = sug if yes and sug else new_when
         for st in steps:
             if st["tool"] in ("check_slot", "book_appointment", "set_reminder", "request_interpreter"):
                 st["args"] = {**st["args"], **{k: v for k, v in when.items() if k in ("date", "time")}}
         run.goal = f"{run.goal} [updated: {orch._human(when.get('date', ''), when.get('time'))}]"
-        await _plan_and_check(db, user, run, run.goal, plan_steps=steps)
+        plan_steps = steps
     else:
         run.goal = f"{run.goal}. {body.text}"
-        await _plan_and_check(db, user, run, run.goal)
-    _say(db, run, run.summary if run.status == "answered" else run.question)
+    run.status, run.question = "planning", ""
     db.commit()
+    _spawn(_job_plan(run.id, plan_steps))
     return _out(run)
 
 
@@ -195,60 +310,16 @@ async def confirm(rid: int, body: DecideIn, user: User = Depends(current_user), 
     run = _own(db, user, rid)
     if run.status != "awaiting_consent":
         raise HTTPException(409, f"This run is {run.status}, not waiting for confirmation")
-    steps = json.loads(run.steps or "[]")
-    trace = json.loads(run.trace or "[]")
-    trace.append({"t": orch._now_iso(), "node": "consent", "detail": "User confirmed"})
-    # re-check right before acting: the slot may have been taken since planning
-    taken = _taken(db, user)
-    for s in steps:
-        if s["tool"] == "check_slot":
-            res = orch.run_read_only("check_slot", s["args"], taken)
-            if not res["ok"]:
-                run.status, run.question = "blocked", res["result"]
-                s["status"], s["result"] = "failed", res["result"]
-                trace.append({"t": orch._now_iso(), "node": "guard", "detail": "Re-check failed: " + res["result"]})
-                run.steps, run.trace = json.dumps(steps), json.dumps(trace)
-                _say(db, run, res["result"])
-                db.commit()
-                return _out(run)
-    done_lines = []
-    for s in steps:
-        if s["status"] != "needs_consent":
-            continue
-        a = AgentAction(user_id=user.id, conversation_id=run.conversation_id, kind=s["tool"],
-                        payload=json.dumps({"fields": s["args"], "run_id": run.id}), status="done", result=s["description"])
-        db.add(a)
-        db.flush()
-        ref = orch.reference(s["tool"], a.id)
-        a.result = f"{s['description']}. Reference {ref}."
-        db.commit()
-        # verify: read it back from storage before reporting success
-        check = db.get(AgentAction, a.id)
-        ok = check is not None and check.status == "done" and json.loads(check.payload).get("fields") == s["args"]
-        s["status"] = "done" if ok else "failed"
-        s["reference"] = ref if ok else None
-        s["verified"] = ok
-        s["result"] = f"Done and verified. Reference {ref}." if ok else "Could not verify this step."
-        trace.append({"t": orch._now_iso(), "node": f"execute:{s['tool']}", "detail": s["result"]})
-        if ok:
-            done_lines.append(f"{s['description'].replace('Book a', 'Booked a').replace('Remind you', 'Reminder set').replace('Request an', 'Requested an').replace('Save a', 'Saved a')} (reference {ref})")
-    ok_all = all(s["status"] in ("done", "skipped") for s in steps)
-    run.status = "done" if ok_all else "failed"
-    run.summary = ("Done. " + ". ".join(done_lines) + ".") if ok_all else "Some steps could not be completed."
-    trace.append({"t": orch._now_iso(), "node": "verify", "detail": "All effects verified in storage" if ok_all else "Verification failed"})
-    run.steps, run.trace = json.dumps(steps), json.dumps(trace)
-    tr = await translate_all(run.summary, [lg for lg in body.languages if lg != "en"]) if body.languages else {}
-    _say(db, run, run.summary, translations=tr)
+    run.status, run.question = "executing", ""
     db.commit()
-    out = _out(run)
-    out["translations"] = tr
-    return out
+    _spawn(_job_execute(run.id, body.languages))
+    return _out(run)
 
 
 @router.post("/runs/{rid}/cancel")
 def cancel(rid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     run = _own(db, user, rid)
-    if run.status in ("done", "cancelled"):
+    if run.status in ("done", "cancelled", "executing"):
         raise HTTPException(409, f"This run is already {run.status}")
     steps = json.loads(run.steps or "[]")
     for s in steps:

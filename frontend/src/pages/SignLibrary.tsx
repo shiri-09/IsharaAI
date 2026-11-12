@@ -13,6 +13,7 @@ export type LibSentence = {
   reliability: number | null;
   has_video: boolean;
   has_avatar?: boolean;
+  active?: boolean;
 };
 
 type Filter = "reliable" | "all" | "untrained";
@@ -96,7 +97,7 @@ export default function SignLibrary() {
   const [playing, setPlaying] = useState<LibSentence | null>(null);
 
   useEffect(() => {
-    api<LibSentence[]>("/api/sentences").then(setItems).catch(() => setItems([]));
+    api<LibSentence[]>("/api/sentences").then((all) => setItems(all.filter((s) => s.active !== false && s.in_model))).catch(() => setItems([]));
   }, []);
 
   const shown = useMemo(() => {

@@ -32,6 +32,16 @@ RAW_DIR: Path = settings.data_dir / "raw"
 EXTERNAL_DIR: Path = settings.data_dir / "external"
 
 
+ACTIVE_FILE: Path = settings.data_dir / "active_sentences.json"
+
+
+def active_ids() -> list[str] | None:
+    """Sentence ids the recogniser is trained on (data/active_sentences.json); None = every sentence."""
+    if not ACTIVE_FILE.exists():
+        return None
+    return json.loads(ACTIVE_FILE.read_text(encoding="utf-8")).get("ids")
+
+
 def load_sentences() -> list[dict]:
     if not SENTENCES_FILE.exists():
         save_sentences([{"id": f"s{i:02d}", "text": t} for i, t in enumerate(DEFAULT_SENTENCES, 1)])

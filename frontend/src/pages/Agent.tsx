@@ -5,14 +5,19 @@ import {
   Bot,
   CalendarCheck,
   CalendarClock,
+  CalendarPlus,
   Check,
   CheckCircle2,
   ChevronDown,
   CircleDashed,
+  Copy,
+  Download,
+  ExternalLink,
   Hand,
   Languages,
   Loader2,
   Mail,
+  MessageCircle,
   Mic,
   MicOff,
   Search,
@@ -22,6 +27,7 @@ import {
   X,
   XCircle,
   UtensilsCrossed,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 import CameraStage from "../components/CameraStage";
@@ -35,12 +41,13 @@ type Step = {
   tool: string;
   args: Record<string, string>;
   why: string;
-  status: "pending" | "done" | "failed" | "needs_consent" | "skipped";
+  status: "pending" | "running" | "done" | "failed" | "needs_consent" | "skipped";
   result: string;
   description: string;
   needs_consent: boolean;
   reference?: string | null;
   verified?: boolean;
+  links?: Partial<Record<"google" | "ics" | "meet" | "swiggy" | "whatsapp" | "email", string>>;
   data?: { suggest?: { date: string; time: string } | null; sources?: { title: string; source: string }[] };
 };
 export type Run = {
@@ -48,7 +55,7 @@ export type Run = {
   conversation_id: number;
   goal: string;
   source: string;
-  status: "planning" | "needs_info" | "blocked" | "awaiting_consent" | "done" | "cancelled" | "failed" | "answered";
+  status: "planning" | "executing" | "needs_info" | "blocked" | "awaiting_consent" | "done" | "cancelled" | "failed" | "answered";
   steps: Step[];
   trace: { t: string; node: string; detail: string }[];
   question: string;
@@ -76,11 +83,12 @@ const TOOL_NAME: Record<string, string> = {
   request_interpreter: "Request interpreter",
   save_message: "Save message",
   translate: "Translate",
-  order_meal: "Order meal (demo)",
+  order_meal: "Order meal",
 };
 
 export const STATUS: Record<Run["status"], { text: string; cls: string }> = {
-  planning: { text: "Planning", cls: "border-white/15 text-zinc-300" },
+  planning: { text: "Planning…", cls: "border-white/25 text-zinc-200 animate-pulse" },
+  executing: { text: "Doing it now…", cls: "border-amber-400/50 bg-amber-400/10 text-amber-200 animate-pulse" },
   needs_info: { text: "Needs details", cls: "border-sky-300/40 bg-sky-300/10 text-sky-200" },
   blocked: { text: "Blocked by a check", cls: "border-red-400/40 bg-red-400/10 text-red-200" },
   awaiting_consent: { text: "Waiting for your OK", cls: "border-amber-400/50 bg-amber-400/10 text-amber-200" },
@@ -101,11 +109,45 @@ const EXAMPLES = [
 ];
 
 function StepIcon({ s }: { s: Step }) {
+  if (s.status === "running") return <Loader2 size={18} className="animate-spin text-amber-300" />;
   if (s.status === "done") return <CheckCircle2 size={18} className="text-emerald-400" />;
   if (s.status === "failed") return <XCircle size={18} className="text-red-400" />;
   if (s.status === "needs_consent") return <ShieldCheck size={18} className="text-amber-300" />;
   if (s.status === "skipped") return <SkipForward size={18} className="text-zinc-500" />;
   return <CircleDashed size={18} className="text-zinc-500" />;
+}
+
+function downloadIcs(name: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/calendar" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${name}.ics`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+const LINK_BTN = "inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-200 transition hover:bg-white/[0.09]";
+
+/** Real, usable results of an action: calendar link and file, a working video room, Swiggy, WhatsApp, email. */
+function ActionLinks({ s }: { s: Step }) {
+  const L = s.links;
+  const [copied, setCopied] = useState(false);
+  if (!L || Object.keys(L).length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-2 pl-7">
+      {L.google && <a className={LINK_BTN} href={L.google} target="_blank" rel="noreferrer"><CalendarPlus size={13} /> Add to Google Calendar</a>}
+      {L.ics && <button className={LINK_BTN} onClick={() => downloadIcs(s.reference || "event", L.ics!)}><Download size={13} /> Download .ics (Apple, Outlook)</button>}
+      {L.meet && <a className={LINK_BTN} href={L.meet} target="_blank" rel="noreferrer"><Video size={13} /> Join online room</a>}
+      {L.meet && (
+        <button className={LINK_BTN} onClick={() => { navigator.clipboard?.writeText(L.meet!); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+          <Copy size={13} /> {copied ? "Copied" : "Copy room link"}
+        </button>
+      )}
+      {L.swiggy && <a className={LINK_BTN} href={L.swiggy} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Open Swiggy to place it</a>}
+      {L.whatsapp && <a className={LINK_BTN} href={L.whatsapp} target="_blank" rel="noreferrer"><MessageCircle size={13} /> Send on WhatsApp</a>}
+      {L.email && <a className={LINK_BTN} href={L.email}><Mail size={13} /> Send by email</a>}
+    </div>
+  );
 }
 
 /** Shows one run: plan, step results, the question / consent, outcome and the trace. Used here and in History. */
@@ -157,6 +199,7 @@ export function RunView({ run, busy, onReply, onConfirm, onCancel }: {
                   {s.verified && <span className="ml-2 text-xs text-emerald-300/80">verified in storage</span>}
                 </p>
               )}
+              <ActionLinks s={s} />
               {s.data?.sources && s.data.sources.length > 0 && (
                 <p className="mt-1 pl-7 text-xs text-zinc-500">Source: {s.data.sources.map((x) => x.title).join(", ")}</p>
               )}
@@ -250,6 +293,15 @@ export default function Agent() {
     start(t, "voice");
   });
 
+  const schedule = runs
+    .flatMap((r) => r.steps.filter((st) => st.status === "done" && st.links && ["book_appointment", "set_reminder", "request_interpreter"].includes(st.tool) && st.args.date).map((st) => ({
+      ref: st.reference || `${r.id}-${st.tool}`,
+      title: st.tool === "book_appointment" ? `Meeting with ${st.args.with}` : st.tool === "set_reminder" ? `Reminder: ${st.args.text}` : `Interpreter: ${st.args.event}`,
+      date: st.args.date,
+      when: new Date(`${st.args.date}T${st.args.time || "09:00"}`).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
+      links: st.links || {},
+    })))
+    .sort((x, y) => x.date.localeCompare(y.date));
   const loadRuns = () => api<Run[]>("/api/agent/runs").then(setRuns).catch(() => undefined);
   useEffect(() => {
     loadRuns();
@@ -267,9 +319,15 @@ export default function Agent() {
     setBusy(true);
     setError("");
     try {
-      const r = await api<Run>(path, { body });
-      setRun(r);
-      announce(r);
+      let cur = await api<Run>(path, { body });
+      setRun(cur);
+      // the agent works in the background: follow it live while it plans, checks and executes
+      while (cur.status === "planning" || cur.status === "executing") {
+        await new Promise((res) => setTimeout(res, 450));
+        cur = await api<Run>(`/api/agent/runs/${cur.id}`);
+        setRun(cur);
+      }
+      announce(cur);
       loadRuns();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -383,7 +441,24 @@ export default function Agent() {
         </div>
       </div>
 
-      <aside className="glass h-fit p-3">
+      <aside className="space-y-4">
+      <div className="glass p-3">
+        <p className="label px-2 pb-2 pt-1">Your schedule</p>
+        {schedule.length === 0 && <p className="px-2 py-3 text-sm text-zinc-600">Nothing booked yet.</p>}
+        <div className="space-y-1">
+          {schedule.map((e) => (
+            <div key={e.ref} className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+              <p className="text-sm text-zinc-200">{e.title}</p>
+              <p className="font-mono text-[11px] text-zinc-500">{e.when} · {e.ref}</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {e.links.google && <a className="text-[11px] text-amber-300 underline" href={e.links.google} target="_blank" rel="noreferrer">Google Calendar</a>}
+                {e.links.meet && <a className="text-[11px] text-amber-300 underline" href={e.links.meet} target="_blank" rel="noreferrer">Join room</a>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="glass h-fit p-3">
         <p className="label px-2 pb-2 pt-1">Recent runs</p>
         {runs.length === 0 && <p className="px-2 py-3 text-sm text-zinc-600">None yet.</p>}
         <div className="max-h-[70vh] space-y-1 overflow-y-auto">
@@ -397,6 +472,7 @@ export default function Agent() {
             </button>
           ))}
         </div>
+      </div>
       </aside>
     </div>
   );

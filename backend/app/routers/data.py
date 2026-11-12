@@ -79,6 +79,7 @@ def sentences():
         recognizer.load()
     known = {_norm(l["text"]) for l in recognizer.labels}
     rel = _reliability()
+    only = dataset.active_ids()
     out = []
     for s in dataset.load_sentences():
         n = _norm(s["text"])
@@ -87,6 +88,7 @@ def sentences():
                 **s,
                 "samples": counts.get(s["id"], 0),
                 "in_model": n in known,
+                "active": only is None or s["id"] in only,
                 "reliability": rel.get(n),
                 "has_video": (REF_VIDEOS / f"{s['id']}.mp4").exists() or _reference_video(s["text"]) is not None,
                 "has_avatar": any((dataset.EXTERNAL_DIR / s["id"]).glob("*.npy")),

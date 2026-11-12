@@ -30,7 +30,7 @@ TOOL_DOCS = {
     "set_reminder": "Set a reminder for the user. args: {text, date, time}",
     "request_interpreter": "Request a sign language interpreter. args: {event, date, time, place}",
     "save_message": "Save a message to send to someone (kept in the outbox). args: {to, text}",
-    "order_meal": "DEMO: record a meal order for the campus canteen (not sent to Swiggy or any app). args: {item, note}",
+    "order_meal": "Record a meal order and give a Swiggy search link to place it for real. args: {item, note}",
     "translate": "Translate text into Indian languages. args: {text, languages: [hi|kn|ta|te]}",
 }
 
@@ -325,7 +325,7 @@ def describe_effect(tool: str, a: dict) -> str:
     if tool == "request_interpreter":
         return f"Request an ISL interpreter for {a.get('event', 'the event')} on {when}" + (f" in {a['place']}" if a.get("place") else "")
     if tool == "order_meal":
-        return f"Order {a.get('item', 'a meal')} from the campus canteen (DEMO: recorded in Ishara AI, not sent to Swiggy or any delivery app)"
+        return f"Order {a.get('item', 'a meal')} (recorded here; a Swiggy link is given to place it for real)"
     if tool == "save_message":
         return f"Save a message to {a.get('to', '')}: \"{a.get('text', '')}\" (kept in your outbox, not sent)"
     if tool == "lookup_info":
@@ -342,3 +342,79 @@ REF_PREFIX = {"order_meal": "ORD", "book_appointment": "ISH", "set_reminder": "R
 
 def reference(tool: str, action_id: int) -> str:
     return f"{REF_PREFIX.get(tool, 'ACT')}-{action_id:04d}"
+
+
+# ---------------------------------------------------------------------------------------------- real, usable results
+import secrets  # noqa: E402
+from datetime import timezone  # noqa: E402
+from urllib.parse import quote  # noqa: E402
+
+
+def _start_end(args: dict, minutes: int) -> tuple[datetime, datetime] | None:
+    try:
+        d = date.fromisoformat(args["date"])
+        h, m = (int(x) for x in (args.get("time") or "09:00").split(":")[:2])
+    except (KeyError, ValueError):
+        return None
+    s = datetime(d.year, d.month, d.day, h, m)
+    return s, s + timedelta(minutes=minutes)
+
+
+def _ics_escape(t: str) -> str:
+    return t.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def make_ics(uid: str, title: str, start: datetime, end: datetime, description: str, location: str = "", alarm_min: int = 15) -> str:
+    f = "%Y%m%dT%H%M%S"
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Ishara AI//Agent//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "BEGIN:VEVENT",
+             f"UID:{uid}@ishara.ai", f"DTSTAMP:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+             f"DTSTART:{start.strftime(f)}", f"DTEND:{end.strftime(f)}", f"SUMMARY:{_ics_escape(title)}",
+             f"DESCRIPTION:{_ics_escape(description)}"]
+    if location:
+        lines.append(f"LOCATION:{_ics_escape(location)}")
+    lines += ["BEGIN:VALARM", "ACTION:DISPLAY", f"DESCRIPTION:{_ics_escape(title)}", f"TRIGGER:-PT{alarm_min}M", "END:VALARM", "END:VEVENT", "END:VCALENDAR"]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def _google_link(title: str, start: datetime, end: datetime, details: str, location: str) -> str:
+    f = "%Y%m%dT%H%M%S"
+    return ("https://calendar.google.com/calendar/render?action=TEMPLATE"
+            f"&text={quote(title)}&dates={start.strftime(f)}/{end.strftime(f)}&ctz=Asia%2FKolkata"
+            f"&details={quote(details)}&location={quote(location)}")
+
+
+def links_for(tool: str, args: dict, ref: str) -> dict:
+    """Things the user can really use after an action: a calendar file and link, a working video room, a Swiggy
+    search, a prefilled WhatsApp or email. Nothing here pretends to be done on the user's behalf."""
+    out: dict = {}
+    if tool == "book_appointment":
+        se = _start_end(args, 30)
+        who = args.get("with", "your professor")
+        room = f"https://meet.jit.si/IsharaAI-{ref}-{secrets.token_hex(3)}"
+        if se:
+            title = f"Meeting with {who}"
+            desc = f"Booked with Ishara AI (reference {ref}). Online room if you meet remotely: {room}" + (f"\nAbout: {args['purpose']}" if args.get("purpose") else "")
+            out["google"] = _google_link(title, se[0], se[1], desc, "Campus (or online room)")
+            out["ics"] = make_ics(ref, title, se[0], se[1], desc, f"Campus or {room}")
+        out["meet"] = room
+    elif tool == "set_reminder":
+        se = _start_end(args, 15)
+        if se:
+            title = f"Reminder: {args.get('text', '')}"
+            desc = f"Set with Ishara AI (reference {ref})"
+            out["google"] = _google_link(title, se[0], se[1], desc, "")
+            out["ics"] = make_ics(ref, title, se[0], se[1], desc, "", alarm_min=10)
+    elif tool == "request_interpreter":
+        se = _start_end(args, 60)
+        if se:
+            title = f"ISL interpreter: {args.get('event', 'event')}"
+            desc = f"Interpreter requested with Ishara AI (reference {ref}). Confirm with the Student Support desk, Block B ground floor."
+            out["google"] = _google_link(title, se[0], se[1], desc, args.get("place", ""))
+            out["ics"] = make_ics(ref, title, se[0], se[1], desc, args.get("place", ""), alarm_min=60)
+    elif tool == "save_message":
+        body = f"{args.get('text', '')}"
+        out["whatsapp"] = "https://wa.me/?text=" + quote(body)
+        out["email"] = f"mailto:?subject={quote('Message from Ishara AI')}&body={quote(body)}"
+    elif tool == "order_meal":
+        out["swiggy"] = "https://www.swiggy.com/search?query=" + quote(args.get("item", "meal"))
+    return out
